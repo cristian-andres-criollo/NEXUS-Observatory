@@ -1,0 +1,32 @@
+
+
+services:
+  backend:
+    image: nexus-observatory-backend:v2
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nexus_backend_standalone
+    env_file:
+      - ./backend/.env
+    # Mapeo del puerto 8000 (Opcional, pero útil si quieres acceder a la API directo)
+    ports:
+      - "8001:8000"
+    # Montamos la base de datos local para que los datos persistan
+    volumes:
+      - ./backend/nexus.db:/app/nexus.db
+    restart: unless-stopped
+
+  frontend:
+    image: nexus-observatory-frontend:v2
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nexus_frontend_standalone
+    # Mapeamos el puerto 5174 local al 80 del contenedor Nginx
+    # Esto asegura que http://localhost:5174 sea la versión standalone
+    ports:
+      - "5174:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

@@ -1,0 +1,314 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Sora:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap');
+
+html {
+  font-size: var(--nexus-text-size, 16px);
+  scroll-behavior: smooth;
+}
+
+:root {
+  --nexus-blue-rgb: 14, 74, 255;
+  --nexus-cyan-rgb: 0, 212, 255;
+  --nexus-ice-rgb: 168, 216, 255;
+
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+  --font-display: 'Sora', sans-serif;
+  --font-mono: 'Fira Code', monospace;
+}
+
+[data-theme="matrix"] {
+  --nexus-blue-rgb: 0, 143, 17;
+  --nexus-cyan-rgb: 0, 255, 65;
+  --nexus-ice-rgb: 200, 255, 200;
+}
+
+[data-theme="amber"] {
+  --nexus-blue-rgb: 217, 62, 10;
+  --nexus-cyan-rgb: 255, 174, 0;
+  --nexus-ice-rgb: 255, 220, 150;
+}
+
+[data-theme="purple"] {
+  --nexus-blue-rgb: 106, 13, 173;
+  --nexus-cyan-rgb: 255, 0, 255;
+  --nexus-ice-rgb: 255, 200, 255;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    /* Fondo ligeramente más oscuro para mayor contraste */
+    background-color: #02040a;
+    color: #f0f4f8;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    letter-spacing: 0.01em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Quitamos el gradient radial estático, lo manejaremos en Layout.tsx con divs animados */
+    background-image: none;
+    overflow: hidden;
+    scroll-behavior: smooth;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+}
+
+@layer components {
+  /* ── Glassmorphism 2.0 Panels ────────────────────────────────────────────── */
+  .nexus-panel {
+    @apply relative overflow-hidden transition-all duration-500 rounded-2xl;
+    /* Base color semi-transparente */
+    background: rgba(4, 10, 25, 0.45);
+    /* Efecto cristal: desenfoque alto y mayor saturación */
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    /* Borde fino exterior */
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    /* Sombras: una exterior suave y una interior blanca/cyan muy sutil para simular el borde del cristal */
+    box-shadow: 
+      0 10px 40px -10px rgba(0, 0, 0, 0.5),
+      inset 0 1px 1px rgba(255, 255, 255, 0.06),
+      inset 0 -1px 1px rgba(0, 212, 255, 0.02);
+  }
+  
+  /* Pseudo-elemento para el ruido (noise) del cristal */
+  .nexus-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    opacity: 0.02;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+
+  .nexus-panel:hover {
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 
+      0 15px 50px -10px rgba(0, 0, 0, 0.6),
+      inset 0 1px 2px rgba(255, 255, 255, 0.1),
+      inset 0 -1px 2px rgba(0, 212, 255, 0.04);
+    transform: translateY(-2px);
+  }
+  
+  /* ── Bouncy Buttons ──────────────────────────────────────────────────────── */
+  .nexus-btn {
+    @apply inline-flex items-center justify-center gap-2;
+    @apply px-4 py-2 font-display text-xs font-semibold tracking-wider transition-all duration-300 rounded-xl relative overflow-hidden;
+    background: rgba(14, 74, 255, 0.08);
+    border: 1px solid rgba(0, 212, 255, 0.2);
+    color: rgba(var(--nexus-cyan-rgb), 1);
+    backdrop-filter: blur(8px);
+  }
+  .nexus-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.5s ease;
+  }
+  .nexus-btn:hover::after {
+    transform: translateX(100%);
+  }
+  .nexus-btn:hover {
+    background: rgba(14, 74, 255, 0.15);
+    border-color: rgba(0, 212, 255, 0.5);
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px -4px rgba(0, 212, 255, 0.25);
+  }
+  .nexus-btn:active {
+    transform: translateY(1px) scale(0.96);
+    transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .nexus-btn-primary {
+    @apply nexus-btn;
+    background: linear-gradient(135deg, rgba(14, 74, 255, 0.9), rgba(0, 212, 255, 0.8));
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(14, 74, 255, 0.3), inset 0 1px 1px rgba(255,255,255,0.3);
+  }
+  .nexus-btn-primary:hover {
+    background: linear-gradient(135deg, rgba(14, 74, 255, 1), rgba(0, 212, 255, 1));
+    border-color: rgba(255, 255, 255, 0.4);
+    box-shadow: 0 8px 25px rgba(0, 212, 255, 0.4), inset 0 1px 2px rgba(255,255,255,0.4);
+  }
+
+  .nexus-btn-danger {
+    @apply nexus-btn;
+    background: rgba(255, 45, 85, 0.1);
+    border-color: rgba(255, 45, 85, 0.3);
+    color: #ff2d55;
+  }
+  .nexus-btn-danger:hover {
+    background: rgba(255, 45, 85, 0.2);
+    border-color: rgba(255, 45, 85, 0.6);
+    color: #fff;
+    box-shadow: 0 8px 20px -4px rgba(255, 45, 85, 0.3);
+  }
+
+  .nexus-btn-secondary {
+    @apply nexus-btn;
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+    color: var(--nexus-dim);
+  }
+  .nexus-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: #fff;
+  }
+
+  /* ── Inputs ────────────────────────────────────────────────────────────── */
+  .nexus-input {
+    @apply w-full bg-black/40 backdrop-blur-md border border-white/10 text-white px-5 py-3 rounded-2xl transition-all duration-300;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+    @apply font-body text-[15px] leading-relaxed tracking-wide;
+  }
+  .nexus-input:focus {
+    @apply outline-none border-nexus-cyan/60 bg-black/60;
+    box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.15), inset 0 2px 4px rgba(0,0,0,0.2);
+  }
+  .nexus-input::placeholder {
+    color: rgba(255, 255, 255, 0.25);
+  }
+
+  /* Status Indicators */
+  .status-dot {
+    @apply w-2 h-2 rounded-full inline-block flex-shrink-0 relative;
+  }
+  .status-dot::after {
+    content: '';
+    @apply absolute inset-0 rounded-full animate-ping opacity-50;
+  }
+  .status-dot.online  { @apply bg-[#00e676] shadow-[0_0_10px_#00e676]; }
+  .status-dot.online::after { @apply bg-[#00e676]; }
+  .status-dot.warning { @apply bg-[#ff6b35] shadow-[0_0_10px_#ff6b35]; }
+  .status-dot.warning::after { @apply bg-[#ff6b35]; }
+  .status-dot.offline { @apply bg-[#ff2d55] shadow-[0_0_10px_#ff2d55]; }
+  .status-dot.offline::after { @apply bg-[#ff2d55]; }
+  
+  /* Text Effects */
+  .glow-text-blue { text-shadow: 0 0 20px rgba(14,74,255,0.8); }
+  .glow-text-cyan { text-shadow: 0 0 20px rgba(0,212,255,0.8); }
+
+  /* ── Backgrounds ───────────────────────────────────────────────────────── */
+  .hex-bg { 
+    background-image: radial-gradient(circle at 1px 1px, rgba(0,212,255,0.05) 1px, transparent 0); 
+    background-size: 24px 24px; 
+  }
+  .grid-bg { 
+    /* Una cuadrícula súper sutil que se desvanece en los bordes */
+    background-image: 
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px), 
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 40px 40px; 
+    background-position: center center;
+  }
+
+  /* ── Scrollbar de cristal ──────────────────────────────────────────────── */
+  .nexus-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 212, 255, 0.2) transparent;
+  }
+  .nexus-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .nexus-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .nexus-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(0, 212, 255, 0.2);
+    border-radius: 6px;
+  }
+  .nexus-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 212, 255, 0.4);
+  }
+
+  /* ── Overlay backdrop para modales/drawers ─────────────────────────────── */
+  .drawer-backdrop {
+    @apply fixed inset-0 z-40 transition-opacity duration-300;
+    background: rgba(2, 4, 10, 0.8);
+    backdrop-filter: blur(8px);
+  }
+
+  /* ── Panel drawer (Sidebar móvil) ──────────────────────────────────────── */
+  .drawer-left {
+    @apply fixed inset-y-0 left-0 z-50 overflow-y-auto;
+    animation: slideInElasticLeft 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.1) forwards;
+  }
+
+  /* ── Botón de menú (panel toggle) ──────────────────────────────────────── */
+  .panel-toggle-btn {
+    @apply inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-display font-semibold tracking-wider transition-all duration-300 flex-shrink-0;
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+    color: var(--nexus-dim);
+  }
+  .panel-toggle-btn:hover {
+    background: rgba(0, 212, 255, 0.05);
+    border-color: rgba(0, 212, 255, 0.3);
+    color: rgba(var(--nexus-cyan-rgb), 1);
+    transform: translateY(-1px);
+  }
+  .panel-toggle-btn.active {
+    background: rgba(0, 212, 255, 0.1);
+    border-color: rgba(0, 212, 255, 0.5);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 212, 255, 0.15);
+  }
+}
+
+/* ── Animations (Premium Feel) ───────────────────────────────────────────── */
+@keyframes fadeInUp { 
+  from { opacity: 0; transform: translateY(20px); filter: blur(4px); } 
+  to { opacity: 1; transform: translateY(0); filter: blur(0); } 
+}
+@keyframes slideInElasticLeft {
+  0% { transform: translateX(-100%); }
+  70% { transform: translateX(2%); }
+  100% { transform: translateX(0); }
+}
+@keyframes floatAnimation {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-15px) scale(1.02); }
+}
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.7; transform: scale(1); filter: blur(80px); }
+  50% { opacity: 1; transform: scale(1.1); filter: blur(100px); }
+}
+
+.animate-fade-in-up { 
+  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
+}
+/* Retrasos para listas */
+.animate-fade-in-up-delay-1 { animation-delay: 0.1s; opacity: 0; }
+.animate-fade-in-up-delay-2 { animation-delay: 0.2s; opacity: 0; }
+.animate-fade-in-up-delay-3 { animation-delay: 0.3s; opacity: 0; }
+
+.animate-float {
+  animation: floatAnimation 6s ease-in-out infinite;
+}
+
+.loading-bar {
+  height: 4px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.8), rgba(14, 74, 255, 0.8), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+@keyframes shimmer { 
+  0% { background-position: 200% 0; } 
+  100% { background-position: -200% 0; } 
+}

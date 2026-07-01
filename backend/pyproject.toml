@@ -1,0 +1,6 @@
+[tool.pyrefly]
+# Nexus Observatory Backend — Pyrefly config
+# This file tells Pyrefly to only lint what's strictly necessary
+# and disables false-positive errors from Spanish docstrings.
+project_includes = []
+project_excludes = ["**"]

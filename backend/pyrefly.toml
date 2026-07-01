@@ -1,0 +1,14 @@
+# Configuración de Pyrefly para NEXUS Observatory Backend
+# Apunta al intérprete del venv para resolver todos los módulos correctamente
+
+python_interpreter = "venv/Scripts/python.exe"
+
+# Directorios a incluir en el análisis
+project_includes = ["app"]
+
+# Ignorar carpetas que no son parte del proyecto
+project_excludes = [
+  "venv",
+  "__pycache__",
+  "chroma_db"
+]
