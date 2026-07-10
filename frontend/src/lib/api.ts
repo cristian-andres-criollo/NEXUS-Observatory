@@ -217,6 +217,7 @@ export interface RepoAnalysisResponse {
 export interface RecentConversation {
   id: number
   module: string
+  model?: string
   user_message: string
   tokens_used: number
   cost_usd: number
@@ -253,7 +254,7 @@ export interface DocumentOut {
 }
 
 export type LatencyPoint = { time: string; latency: number; module: string }
-export type CostPoint = { time: string; cost: number; module: string }
+export type CostPoint = { timestamp: string; cost_usd: number; module: string; tokens: number }
 
 // ── Servicios API ──────────────────────────────────────────────────────────────
 export const chatAPI = {
@@ -472,6 +473,9 @@ export interface AdminDashboardData {
   total_tokens_purchased: number;
   trm_usd_cop: number;
   groq_cost_per_million: number;
+  anthropic_cost_per_million: number;
+  openai_cost_per_million: number;
+  google_cost_per_million: number;
   total_users: number;
   token_limit_per_user: number;
   llm_provider: string;

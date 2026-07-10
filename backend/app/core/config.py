@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "NEXUS Observatory"
     DEBUG: bool = False
     SECRET_KEY: str = "nexus-observatory-dev-secret-key-must-be-at-least-32-bytes"
-    CORS_ORIGINS: str = "http://localhost:5173"
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176"
 
     # ── Groq LLM ───────────────────────────────────────────────────────────
     # Puedes proveer múltiples API keys separadas por comas

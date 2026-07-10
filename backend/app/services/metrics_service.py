@@ -1,103 +1,84 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import text
 from app.models.conversation import Conversation
-from app.models.user import User
-
-def _get_enterprise_emails(db: Session) -> list:
-    users = db.query(User.email).filter(User.created_by_admin == True).all()
-    return [u[0] for u in users]
 
 def get_global_metrics(db: Session, user_email: str = None) -> dict:
-    query_base = db.query(Conversation)
-    ent_emails = [] if user_email else _get_enterprise_emails(db)
+    where_clause = ""
+    params = {}
     
     if user_email:
-        query_base = query_base.filter(Conversation.user_email == user_email)
-    elif ent_emails:
-        query_base = query_base.filter(Conversation.user_email.in_(ent_emails))
-    else:
-        query_base = query_base.filter(False) # No data if no enterprise users
-        
-    total = db.query(func.count(Conversation.id)).filter(
-        Conversation.user_email == user_email if user_email else (Conversation.user_email.in_(ent_emails) if ent_emails else False)
-    ).scalar() or 0
-    
-    total_tokens = db.query(func.sum(Conversation.tokens_used)).filter(
-        Conversation.user_email == user_email if user_email else (Conversation.user_email.in_(ent_emails) if ent_emails else False)
-    ).scalar() or 0
-    
-    total_cost = db.query(func.sum(Conversation.cost_usd)).filter(
-        Conversation.user_email == user_email if user_email else (Conversation.user_email.in_(ent_emails) if ent_emails else False)
-    ).scalar() or 0.0
-    
-    avg_latency = db.query(func.avg(Conversation.latency_ms)).filter(
-        Conversation.user_email == user_email if user_email else (Conversation.user_email.in_(ent_emails) if ent_emails else False)
-    ).scalar() or 0.0
-    
-    avg_hall = db.query(func.avg(Conversation.hallucination_score)).filter(
-        Conversation.hallucination_score.isnot(None),
-        Conversation.user_email == user_email if user_email else (Conversation.user_email.in_(ent_emails) if ent_emails else False)
-    ).scalar()
+        where_clause = "WHERE c.user_email = :email"
+        params["email"] = user_email
 
-    # Conteo por módulo
-    q_mod = db.query(Conversation.module, func.count(Conversation.id))
-    if user_email:
-        q_mod = q_mod.filter(Conversation.user_email == user_email)
-    elif ent_emails:
-        q_mod = q_mod.filter(Conversation.user_email.in_(ent_emails))
-    else:
-        q_mod = q_mod.filter(False)
-    rows = q_mod.group_by(Conversation.module).all()
-    by_module = {module: count for module, count in rows}
+    q_totals = f"""
+        SELECT 
+            COUNT(c.id) as total,
+            COALESCE(SUM(c.tokens_used), 0) as total_tokens,
+            COALESCE(SUM(c.cost_usd), 0.0) as total_cost,
+            COALESCE(AVG(c.latency_ms), 0.0) as avg_latency,
+            COALESCE(AVG(c.hallucination_score), 0.0) as avg_hallucination
+        FROM conversations c
+        {where_clause}
+    """
+    totals = db.execute(text(q_totals), params).fetchone()
 
-    # Conversaciones recientes
-    q_recent = db.query(Conversation)
-    if user_email:
-        q_recent = q_recent.filter(Conversation.user_email == user_email)
-    elif ent_emails:
-        q_recent = q_recent.filter(Conversation.user_email.in_(ent_emails))
-    else:
-        q_recent = q_recent.filter(False)
-    recent = q_recent.order_by(Conversation.created_at.desc()).limit(15).all()
+    q_mod = f"""
+        SELECT c.module, COUNT(c.id)
+        FROM conversations c
+        {where_clause}
+        GROUP BY c.module
+    """
+    mod_rows = db.execute(text(q_mod), params).fetchall()
+    by_module = {row[0]: row[1] for row in mod_rows}
+
+    q_recent = f"""
+        SELECT c.id, c.module, c.model, c.user_message, c.tokens_used, c.cost_usd, c.latency_ms, c.hallucination_score, c.created_at, c.session_id
+        FROM conversations c
+        {where_clause}
+        ORDER BY c.created_at DESC
+        LIMIT 15
+    """
+    recent_rows = db.execute(text(q_recent), params).fetchall()
+    recent_list = []
+    for r in recent_rows:
+        recent_list.append({
+            "id": str(r[0]),
+            "module": r[1],
+            "model": r[2] or "llama-3.1-8b-instant",
+            "user_message": r[3][:100] + "..." if r[3] and len(r[3]) > 100 else r[3],
+            "tokens_used": r[4],
+            "cost_usd": float(r[5] or 0.0),
+            "latency_ms": int(r[6] or 0),
+            "hallucination_score": float(r[7] or 0.0),
+            "created_at": r[8].isoformat() if hasattr(r[8], 'isoformat') else str(r[8]) if r[8] else None,
+            "trace_id": r[9]
+        })
 
     top_user = None
     top_user_conversations = 0
     top_users = []
-    if not user_email and ent_emails:
-        from sqlalchemy import desc
-        top_user_rows = (
-            db.query(Conversation.user_email, func.count(Conversation.id))
-            .filter(Conversation.user_email.in_(ent_emails))
-            .group_by(Conversation.user_email)
-            .order_by(desc(func.count(Conversation.id)))
-            .limit(5)
-            .all()
-        )
-        if top_user_rows:
-            top_user = top_user_rows[0][0]
-            top_user_conversations = top_user_rows[0][1]
-            top_users = [{"user_email": r[0], "conversations": r[1]} for r in top_user_rows]
-
-    recent_list = [
-        {
-            "id": c.id,
-            "module": c.module,
-            "user_message": c.user_message[:80],
-            "tokens_used": c.tokens_used,
-            "cost_usd": c.cost_usd,
-            "latency_ms": c.latency_ms,
-            "hallucination_score": c.hallucination_score,
-            "created_at": c.created_at.isoformat() if c.created_at else None,
-        }
-        for c in recent
-    ]
+    
+    if not user_email:
+        q_top = """
+            SELECT c.user_email, COUNT(c.id) as cnt
+            FROM conversations c
+            WHERE c.user_email IS NOT NULL
+            GROUP BY c.user_email
+            ORDER BY cnt DESC
+            LIMIT 5
+        """
+        top_rows = db.execute(text(q_top)).fetchall()
+        if top_rows:
+            top_user = top_rows[0][0]
+            top_user_conversations = top_rows[0][1]
+            top_users = [{"user_email": r[0], "conversations": r[1]} for r in top_rows]
 
     return {
-        "total_conversations": total,
-        "total_tokens": int(total_tokens),
-        "total_cost_usd": round(float(total_cost), 8),
-        "avg_latency_ms": round(float(avg_latency), 1),
-        "avg_hallucination_score": round(float(avg_hall), 3) if avg_hall is not None else None,
+        "total_conversations": totals[0] or 0,
+        "total_tokens": int(totals[1] or 0),
+        "total_cost_usd": round(float(totals[2] or 0.0), 8),
+        "avg_latency_ms": float(totals[3] or 0.0),
+        "avg_hallucination_score": float(totals[4] or 0.0) if totals[4] is not None else None,
         "conversations_by_module": by_module,
         "recent_conversations": recent_list,
         "top_user": top_user,
@@ -105,36 +86,55 @@ def get_global_metrics(db: Session, user_email: str = None) -> dict:
         "top_users": top_users,
     }
 
-
 def get_latency_history(db: Session, limit: int = 25, user_email: str = None) -> list:
-    q = db.query(Conversation.created_at, Conversation.latency_ms, Conversation.module)
+    where_clause = ""
+    params = {"limit": limit}
+    
     if user_email:
-        q = q.filter(Conversation.user_email == user_email)
-    else:
-        ent_emails = _get_enterprise_emails(db)
-        if ent_emails:
-            q = q.filter(Conversation.user_email.in_(ent_emails))
-        else:
-            q = q.filter(False)
-    rows = q.order_by(Conversation.created_at.desc()).limit(limit).all()
+        where_clause = "WHERE c.user_email = :email"
+        params["email"] = user_email
+        
+    q = f"""
+        SELECT c.created_at, c.latency_ms, c.module
+        FROM conversations c
+        {where_clause}
+        ORDER BY c.created_at DESC
+        LIMIT :limit
+    """
+    rows = db.execute(text(q), params).fetchall()
+    
     return [
-        {"time": r.created_at.isoformat() if r.created_at else "", "latency": r.latency_ms, "module": r.module}
+        {
+            "timestamp": r[0].isoformat() if hasattr(r[0], 'isoformat') else str(r[0]) if r[0] else "", 
+            "latency": int(r[1] or 0), 
+            "module": r[2]
+        }
         for r in reversed(rows)
     ]
 
-
 def get_cost_history(db: Session, limit: int = 25, user_email: str = None) -> list:
-    q = db.query(Conversation.created_at, Conversation.cost_usd, Conversation.module)
+    where_clause = ""
+    params = {"limit": limit}
+    
     if user_email:
-        q = q.filter(Conversation.user_email == user_email)
-    else:
-        ent_emails = _get_enterprise_emails(db)
-        if ent_emails:
-            q = q.filter(Conversation.user_email.in_(ent_emails))
-        else:
-            q = q.filter(False)
-    rows = q.order_by(Conversation.created_at.desc()).limit(limit).all()
+        where_clause = "WHERE c.user_email = :email"
+        params["email"] = user_email
+        
+    q = f"""
+        SELECT c.created_at, c.cost_usd, c.module, c.tokens_used
+        FROM conversations c
+        {where_clause}
+        ORDER BY c.created_at DESC
+        LIMIT :limit
+    """
+    rows = db.execute(text(q), params).fetchall()
+    
     return [
-        {"time": r.created_at.isoformat() if r.created_at else "", "cost": r.cost_usd, "module": r.module}
+        {
+            "timestamp": r[0].isoformat() if hasattr(r[0], 'isoformat') else str(r[0]) if r[0] else "", 
+            "cost_usd": float(r[1] or 0.0), 
+            "module": r[2],
+            "tokens": r[3] or 0
+        }
         for r in reversed(rows)
     ]

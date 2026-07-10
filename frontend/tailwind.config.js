@@ -5,21 +5,21 @@ export default {
     extend: {
       colors: {
         nexus: {
-          black:   '#02040a',
-          darker:  '#040a19',
-          dark:    '#081226',
-          navy:    '#0b1836',
-          blue:    'rgba(var(--nexus-blue-rgb), <alpha-value>)',
-          cyan:    'rgba(var(--nexus-cyan-rgb), <alpha-value>)',
-          ice:     'rgba(var(--nexus-ice-rgb), <alpha-value>)',
-          glow:    '#1a6bff',
-          accent:  '#00ffcc',
-          warn:    '#ff6b35',
-          danger:  '#ff2d55',
-          success: '#00e676',
-          muted:   '#2a3f5f',
-          text:    '#c8deff',
-          dim:     '#5a7a9f',
+          black:   '#0a0a0b',
+          darker:  '#121214',
+          dark:    '#18181b',
+          navy:    '#27272a',
+          blue:    '#3b82f6',
+          cyan:    '#0ea5e9',
+          ice:     '#e0f2fe',
+          glow:    '#6366f1',
+          accent:  '#8b5cf6',
+          warn:    '#f59e0b',
+          danger:  '#ef4444',
+          success: '#10b981',
+          muted:   '#3f3f46',
+          text:    '#fafafa',
+          dim:     '#a1a1aa',
         }
       },
       fontFamily: {
@@ -30,33 +30,29 @@ export default {
       },
       animation: {
         'pulse-slow':   'pulse 3s cubic-bezier(0.4,0,0.6,1) infinite',
-        'glow-line':    'glowLine 2s ease-in-out infinite alternate',
-        'scan':         'scan 4s linear infinite',
-        'flicker':      'flicker 5s linear infinite',
-        'float':        'float 6s ease-in-out infinite',
-        'data-stream':  'dataStream 8s linear infinite',
+        'fade-in':      'fadeIn 0.3s ease-out',
+        'fade-in-up':   'fadeInUp 0.4s ease-out',
       },
       keyframes: {
-        glowLine:   { '0%': { opacity: '0.4' }, '100%': { opacity: '1' } },
-        scan:       { '0%': { transform: 'translateY(-100%)' }, '100%': { transform: 'translateY(100vh)' } },
-        flicker:    { '0%,95%,100%': { opacity:'1' }, '96%': { opacity:'0.4' }, '97%': { opacity:'1' }, '98%': { opacity:'0.3' } },
-        float:      { '0%,100%': { transform:'translateY(0px)' }, '50%': { transform:'translateY(-8px)' } },
-        dataStream: { '0%': { transform:'translateY(-100%)' }, '100%': { transform:'translateY(100vh)' } },
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        fadeInUp: {
+          '0%': { opacity: '0', transform: 'translateY(10px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        }
       },
       boxShadow: {
-        'nexus':      '0 0 20px rgba(14,74,255,0.3), 0 0 60px rgba(14,74,255,0.1)',
-        'nexus-cyan': '0 0 20px rgba(0,212,255,0.4), 0 0 60px rgba(0,212,255,0.1)',
-        'nexus-sm':   '0 0 8px rgba(14,74,255,0.5)',
-        'inner-glow': 'inset 0 0 30px rgba(14,74,255,0.15)',
+        'nexus':      '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        'nexus-cyan': '0 0 15px rgba(14, 165, 233, 0.2)',
+        'nexus-sm':   '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+        'inner-glow': 'inset 0 1px 0 0 rgba(255, 255, 255, 0.05)',
       },
       backgroundImage: {
-        'grid-pattern': 'linear-gradient(rgba(14,74,255,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(14,74,255,0.07) 1px, transparent 1px)',
-        'hex-pattern':  'radial-gradient(circle at 1px 1px, rgba(0,212,255,0.12) 1px, transparent 0)',
+        'grid-pattern': 'none',
+        'hex-pattern':  'none',
       },
-      backgroundSize: {
-        'grid': '40px 40px',
-        'hex':  '20px 20px',
-      }
     },
   },
   plugins: [

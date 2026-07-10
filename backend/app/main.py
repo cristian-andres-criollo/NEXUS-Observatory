@@ -2,6 +2,9 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
 from app.core.config import settings
 from app.core.observability import setup_observability
 from app.db.database import create_tables
@@ -16,14 +19,22 @@ logging.getLogger("uvicorn.access").setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+import asyncio
+from app.services.scheduler_service import start_scheduler
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🚀 Iniciando NEXUS Observatory Standalone...")
     create_tables()
     setup_observability()
+    
+    # Iniciar la tarea en segundo plano
+    scheduler_task = asyncio.create_task(start_scheduler())
+    
     logger.info("✅ NEXUS Observatory listo")
     yield
     logger.info("👋 Apagando NEXUS Observatory")
+    scheduler_task.cancel()
 
 
 app = FastAPI(
@@ -50,8 +61,10 @@ app.include_router(ab_testing, prefix=PREFIX)
 app.include_router(export,    prefix=PREFIX)
 app.include_router(webauthn,  prefix=PREFIX)
 
+from finops_gateway import app as finops_app
+app.mount("/finops", finops_app)
 
-@app.get("/")
+@app.get("/api")
 def root():
     return {
         "app": "NEXUS Observatory Standalone",
@@ -66,3 +79,15 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+# Montar los assets estáticos (CSS/JS)
+if os.path.isdir("static/assets"):
+    app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
+
+# SPA Catch-all: cualquier otra ruta devuelve index.html
+@app.get("/{full_path:path}")
+def serve_spa(full_path: str):
+    index_path = os.path.join("static", "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"error": "Frontend no compilado. Ejecuta el build y cópialo a /static."}

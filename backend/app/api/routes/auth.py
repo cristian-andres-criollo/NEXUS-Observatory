@@ -254,15 +254,19 @@ def check_free_plan_limit(module: str):
 @router.put("/auth/me/preferences")
 def update_preferences(prefs: PreferencesUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     setattr(current_user, 'viewed_context_tabs', prefs.viewed_context_tabs)
-    db.commit()
-    db.refresh(current_user)
+    from sqlalchemy.orm.session import object_session
+    if object_session(current_user) is not None:
+        db.commit()
+        db.refresh(current_user)
     return {"message": "Preferencias actualizadas", "viewed_context_tabs": current_user.viewed_context_tabs}
 
 @router.put("/auth/me/theme")
 def update_theme(prefs: ThemeUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     setattr(current_user, 'theme_color', prefs.theme_color)
-    db.commit()
-    db.refresh(current_user)
+    from sqlalchemy.orm.session import object_session
+    if object_session(current_user) is not None:
+        db.commit()
+        db.refresh(current_user)
     return {"message": "Tema actualizado", "theme_color": current_user.theme_color}
 
 @router.put("/auth/me/profile")
@@ -279,11 +283,13 @@ def update_profile(profile: UserProfileUpdate, current_user: User = Depends(get_
         current_user.hardware_specs = profile.hardware_specs
     
     # Auto-upgrade admins to enterprise when they update profile as well
-    if current_user.role == "admin" and current_user.plan != "enterprise":
+    if current_user.role == "admin" and getattr(current_user, 'plan', None) != "enterprise":
         current_user.plan = "enterprise"
 
-    db.commit()
-    db.refresh(current_user)
+    from sqlalchemy.orm.session import object_session
+    if object_session(current_user) is not None:
+        db.commit()
+        db.refresh(current_user)
     return {
         "message": "Perfil actualizado exitosamente",
         "full_name": current_user.full_name,

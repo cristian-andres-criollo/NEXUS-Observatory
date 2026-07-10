@@ -39,7 +39,7 @@ def _calculate_tokens_from_cop(budget_cop: int, trm: float, cost_per_million: fl
 def _get_settings(db: Session) -> SystemSettings:
     s = db.query(SystemSettings).first()
     if not s:
-        s = SystemSettings(budget_cop=500000, trm_usd_cop=4200.0, groq_cost_per_million=0.69)
+        s = SystemSettings(budget_cop=500000, trm_usd_cop=4200.0, groq_cost_per_million=0.69, anthropic_cost_per_million=15.0, openai_cost_per_million=10.0, google_cost_per_million=7.0)
         db.add(s)
         db.commit()
     return s
@@ -91,6 +91,9 @@ class AdminDashboardResponse(BaseModel):
     total_tokens_purchased: int
     trm_usd_cop: float
     groq_cost_per_million: float
+    anthropic_cost_per_million: float
+    openai_cost_per_million: float
+    google_cost_per_million: float
     total_users: int
     token_limit_per_user: int
     payment_methods: List[PaymentMethodOut]
@@ -105,13 +108,12 @@ class AdminDashboardResponse(BaseModel):
 def get_admin_dashboard(db: Session = Depends(get_db), current_admin: User = Depends(get_current_admin_user)):
     s = _get_settings(db)
     
-    # Calcular tokens comprables con el presupuesto en COP
+    # Calcular tokens comprables con el presupuesto en COP (usando Groq como base por ahora)
     total_tokens = _calculate_tokens_from_cop(int(s.budget_cop), float(s.trm_usd_cop), float(s.groq_cost_per_million))
     
-    users = db.query(User).filter(User.created_by_admin == True).all()
-    enterprise_users = [u for u in users if getattr(u, 'plan', 'free') == 'enterprise' or u.role == 'admin']
-    total_enterprise = max(len(enterprise_users), 1)
-    limit_per_enterprise = total_tokens // total_enterprise
+    users = db.query(User).all()
+    total_users_count = max(len(users), 1)
+    limit_per_user = total_tokens // total_users_count
 
     # Métricas por usuario
     user_stats = []
@@ -119,10 +121,7 @@ def get_admin_dashboard(db: Session = Depends(get_db), current_admin: User = Dep
         user_plan = getattr(u, 'plan', 'free')
         used = db.query(func.sum(Conversation.tokens_used)).filter(Conversation.user_email == u.email).scalar() or 0
         
-        if user_plan == 'enterprise' or u.role == 'admin':
-            limit = limit_per_enterprise
-        else:
-            limit = 0  # Free users don't have token budget
+        limit = limit_per_user
         
         pct = min(100.0, (used / limit) * 100) if limit > 0 else 0.0
         user_stats.append(UserStatsResponse(
@@ -143,8 +142,11 @@ def get_admin_dashboard(db: Session = Depends(get_db), current_admin: User = Dep
         total_tokens_purchased=int(total_tokens),
         trm_usd_cop=float(s.trm_usd_cop),
         groq_cost_per_million=float(s.groq_cost_per_million),
+        anthropic_cost_per_million=float(s.anthropic_cost_per_million),
+        openai_cost_per_million=float(s.openai_cost_per_million),
+        google_cost_per_million=float(s.google_cost_per_million),
         total_users=len(users),
-        token_limit_per_user=int(limit_per_enterprise),
+        token_limit_per_user=int(limit_per_user),
         payment_methods=cards_out,
         users=user_stats,
         llm_provider=s.llm_provider or "groq",

@@ -13,6 +13,9 @@ import json
 from app.core.llm_provider import get_langchain_llm
 from app.core.config import settings
 from app.models.conversation import Conversation
+from app.db.finops_db import FinopsSessionLocal
+from sqlalchemy import text
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +181,49 @@ def chat(message: str, session_id: str, db: Session, user_email: str, temperatur
         settings.GROQ_MODEL, tokens_total, latency_ms, cost,
     )
 
+    # -------------------------------------------------------------
+    # Sincronización con FinOps (PostgreSQL) para Dashboard Nativo
+    # -------------------------------------------------------------
+    try:
+        with FinopsSessionLocal() as finops_db:
+            # 1. Buscar o crear presupuesto (simulado básico para el registro)
+            budget_id = finops_db.execute(text("SELECT id FROM budgets LIMIT 1")).scalar()
+            
+            # 2. Buscar proyecto (Módulo Chat)
+            project_id = finops_db.execute(text("SELECT id FROM projects WHERE module_key = 'chat' LIMIT 1")).scalar()
+            if not project_id:
+                # Fallback genérico si no encuentra el módulo chat
+                project_id = finops_db.execute(text("SELECT id FROM projects LIMIT 1")).scalar()
+            
+            # 3. Buscar user_id en postgres a partir del email, crearlo si no existe
+            user_id = finops_db.execute(text("SELECT id FROM users WHERE email = :email"), {"email": user_email}).scalar()
+            if not user_id:
+                company_id = finops_db.execute(text("SELECT id FROM companies LIMIT 1")).scalar()
+                if company_id:
+                    user_id = finops_db.execute(text("INSERT INTO users (company_id, email) VALUES (:cid, :email) RETURNING id"), {"cid": company_id, "email": user_email}).scalar()
+            
+            if budget_id and project_id:
+                trace_id = f"local-trace-{session_id}-{int(time.time())}"
+                trm = 4150.00
+                cost_cop = cost * trm
+                finops_db.execute(text("""
+                    INSERT INTO transactions (
+                        project_id, user_id, budget_id, trace_id, model_name, 
+                        prompt_tokens, completion_tokens, total_tokens, 
+                        cost_usd, cost_cop, trm_applied
+                    ) VALUES (
+                        :pid, :uid, :bid, :trace, :model,
+                        :pt, :ct, :tt, :usd, :cop, :trm
+                    )
+                """), {
+                    "pid": project_id, "uid": user_id, "bid": budget_id, "trace": trace_id,
+                    "model": settings.GROQ_MODEL, "pt": tokens_in, "ct": tokens_out, "tt": tokens_total,
+                    "usd": cost, "cop": cost_cop, "trm": trm
+                })
+                finops_db.commit()
+    except Exception as e:
+        logger.error(f"Error sincronizando con FinOps DB: {e}")
+
     return {
         "response": content,
         "session_id": session_id,
@@ -289,6 +335,45 @@ def chat_stream(message: str, session_id: str, db: Session, user_email: str, tem
         )
         db.add(conv)
         db.commit()
+
+        # -------------------------------------------------------------
+        # Sincronización con FinOps (PostgreSQL) para Dashboard Nativo
+        # -------------------------------------------------------------
+        try:
+            with FinopsSessionLocal() as finops_db:
+                budget_id = finops_db.execute(text("SELECT id FROM budgets LIMIT 1")).scalar()
+                project_id = finops_db.execute(text("SELECT id FROM projects WHERE module_key = 'chat' LIMIT 1")).scalar()
+                if not project_id:
+                    project_id = finops_db.execute(text("SELECT id FROM projects LIMIT 1")).scalar()
+                
+                # 3. Buscar user_id en postgres a partir del email, crearlo si no existe
+                user_id = finops_db.execute(text("SELECT id FROM users WHERE email = :email"), {"email": user_email}).scalar()
+                if not user_id:
+                    company_id = finops_db.execute(text("SELECT id FROM companies LIMIT 1")).scalar()
+                    if company_id:
+                        user_id = finops_db.execute(text("INSERT INTO users (company_id, email) VALUES (:cid, :email) RETURNING id"), {"cid": company_id, "email": user_email}).scalar()
+                
+                if budget_id and project_id:
+                    trace_id = f"local-trace-{session_id}-{int(time.time())}"
+                    trm = 4150.00
+                    cost_cop = cost * trm
+                    finops_db.execute(text("""
+                        INSERT INTO transactions (
+                            project_id, user_id, budget_id, trace_id, model_name, 
+                            prompt_tokens, completion_tokens, total_tokens, 
+                            cost_usd, cost_cop, trm_applied
+                        ) VALUES (
+                            :pid, :uid, :bid, :trace, :model,
+                            :pt, :ct, :tt, :usd, :cop, :trm
+                        )
+                    """), {
+                        "pid": project_id, "uid": user_id, "bid": budget_id, "trace": trace_id,
+                        "model": settings.GROQ_MODEL, "pt": tokens_in, "ct": tokens_out, "tt": tokens_total,
+                        "usd": cost, "cop": cost_cop, "trm": trm
+                    })
+                    finops_db.commit()
+        except Exception as e:
+            logger.error(f"Error sincronizando con FinOps DB en stream: {e}")
 
         metrics = {
             "session_id": session_id, "tokens_used": tokens_total, "cost_usd": cost,

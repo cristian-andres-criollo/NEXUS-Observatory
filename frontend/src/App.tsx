@@ -6,6 +6,7 @@ import { ChatModule } from './pages/ChatModule'
 import { ABTestingModule } from './pages/ABTestingModule'
 import { LoginModule } from './pages/LoginModule'
 import { SettingsModule } from './pages/SettingsModule'
+import { FinOpsModule } from './pages/FinOpsModule'
 
 export default function App() {
   const { isAuthenticated, user } = useAuth()
@@ -32,11 +33,14 @@ export default function App() {
       <div style={{ display: path === '/ab' ? 'block' : 'none', height: '100%' }}>
         <ABTestingModule />
       </div>
+      <div style={{ display: path === '/finops' ? 'block' : 'none', height: '100%' }}>
+        <FinOpsModule />
+      </div>
       <div style={{ display: path === '/settings' ? 'block' : 'none', height: '100%' }}>
         <SettingsModule />
       </div>
       {/* Catch all redirect equivalent */}
-      {['/', '/chat', '/ab', '/settings'].indexOf(path) === -1 && (
+      {['/', '/chat', '/ab', '/finops', '/settings'].indexOf(path) === -1 && (
         <Navigate to="/" replace />
       )}
     </div>

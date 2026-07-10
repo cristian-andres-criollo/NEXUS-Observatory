@@ -18,16 +18,23 @@ import { Spinner } from '../components/ui/Spinner'
 import { NexusLoader } from '../components/ui/NexusLoader'
 import { Badge } from '../components/ui/Badge'
 import { useAuth } from '../context/AuthContext'
-import { authAPI } from '../lib/api'
+import { authAPI, adminAPI } from '../lib/api'
+import { PDFReportGenerator } from '../components/ui/PDFReportGenerator'
+import { CorporateReportTemplate } from '../components/ui/CorporateReportTemplate'
 
-const MODULE_LABELS: Record<string, string> = {
-  chat: 'ASISTENTE',
-  rag: 'DOCUMENTOS',
-  code_review: 'CODE REVIEW',
-  repo_agent: 'REPO AGENT',
+// Generador de color consistente basado en string
+const stringToColor = (str: string) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+  return '#' + '00000'.substring(0, 6 - c.length) + c;
 }
-const MODULE_COLORS: Record<string, string> = {
-  chat: '#0e4aff', rag: '#00d4ff', code_review: '#00ffcc', repo_agent: '#ff6b35',
+
+const formatModuleName = (str: string) => {
+  if (!str) return 'DESCONOCIDO';
+  return str.replace(/_/g, ' ').toUpperCase();
 }
 
 const TAB_HELP_CONTENT: Record<string, {
@@ -123,156 +130,20 @@ function getSpansForConversation(c: any) {
   const totalLatency = c.latency_ms || 800
   const totalCost = c.cost_usd || 0.0001
   const totalTokens = c.tokens_used || 200
+  const moduleName = formatModuleName(c.module)
 
-  if (c.module === 'rag') {
-    return [
-      { name: 'RAG Pipeline Invocation', type: 'pipeline', latency: totalLatency, cost: totalCost, tokens: totalTokens, offset: 0, status: 'success' },
-      { name: 'ChromaDB Query Search', type: 'db', latency: Math.round(totalLatency * 0.25), cost: 0, tokens: 0, offset: 0, status: 'success' },
-      { name: 'Prompt Augmentation & Context Sync', type: 'internal', latency: Math.round(totalLatency * 0.08), cost: 0, tokens: 0, offset: Math.round(totalLatency * 0.25), status: 'success' },
-      { name: 'Groq LLM Generation (Llama 3.1)', type: 'llm', latency: Math.round(totalLatency * 0.52), cost: totalCost * 0.8, tokens: Math.round(totalTokens * 0.95), offset: Math.round(totalLatency * 0.33), status: 'success' },
-      { name: 'LLM-As-Judge Groundedness Evaluation', type: 'evaluation', latency: Math.round(totalLatency * 0.15), cost: totalCost * 0.2, tokens: Math.round(totalTokens * 0.05), offset: Math.round(totalLatency * 0.85), status: c.hallucination_score > 0.5 ? 'warning' : 'success' },
-    ]
-  } else if (c.module === 'code_review') {
-    return [
-      { name: 'Code Review Pipeline', type: 'pipeline', latency: totalLatency, cost: totalCost, tokens: totalTokens, offset: 0, status: 'success' },
-      { name: 'Syntax Parsing & Abstract Syntax Tree', type: 'internal', latency: Math.round(totalLatency * 0.12), cost: 0, tokens: 0, offset: 0, status: 'success' },
-      { name: 'Groq Static Code Analysis & Linting', type: 'llm', latency: Math.round(totalLatency * 0.68), cost: totalCost * 0.9, tokens: Math.round(totalTokens * 0.9), offset: Math.round(totalLatency * 0.12), status: 'success' },
-      { name: 'Diff Generation & Vulnerability Auditing', type: 'security', latency: Math.round(totalLatency * 0.20), cost: totalCost * 0.1, tokens: Math.round(totalTokens * 0.1), offset: Math.round(totalLatency * 0.80), status: 'success' },
-    ]
-  } else if (c.module === 'repo_agent') {
-    return [
-      { name: 'Repo Agent Report Builder', type: 'pipeline', latency: totalLatency, cost: totalCost, tokens: totalTokens, offset: 0, status: 'success' },
-      { name: 'Repository Structure Analysis & Traversal', type: 'internal', latency: Math.round(totalLatency * 0.35), cost: 0, tokens: 0, offset: 0, status: 'success' },
-      { name: 'Groq Multi-File Technical Synthesizer', type: 'llm', latency: Math.round(totalLatency * 0.55), cost: totalCost * 0.95, tokens: Math.round(totalTokens * 0.95), offset: Math.round(totalLatency * 0.35), status: 'success' },
-      { name: 'PDF Report Assembly', type: 'internal', latency: Math.round(totalLatency * 0.10), cost: totalCost * 0.05, tokens: Math.round(totalTokens * 0.05), offset: Math.round(totalLatency * 0.90), status: 'success' },
-    ]
-  } else {
-    return [
-      { name: 'Assistant Chat Invocation', type: 'pipeline', latency: totalLatency, cost: totalCost, tokens: totalTokens, offset: 0, status: 'success' },
-      { name: 'System Context & Security Guardrails', type: 'security', latency: Math.round(totalLatency * 0.08), cost: 0, tokens: 0, offset: 0, status: 'success' },
-      { name: 'Groq LLM Chat Generation (Llama 3.1)', type: 'llm', latency: Math.round(totalLatency * 0.84), cost: totalCost, tokens: totalTokens, offset: Math.round(totalLatency * 0.08), status: 'success' },
-      { name: 'Observability Span Publish', type: 'internal', latency: Math.round(totalLatency * 0.08), cost: 0, tokens: 0, offset: Math.round(totalLatency * 0.92), status: 'success' },
-    ]
-  }
-}
-
-// ==========================================
-// MOCK DATA PARA DASHBOARDS INTEGRADOS
-// ==========================================
-
-const LANGSMITH_MOCK_RUNS = [
-  { id: 'run-1', name: 'RAG Pipeline Ingest & Answer', module: 'rag', status: 'success', latency: 980, tokens: 350, cost: 0.00015, date: '11:24:02' },
-  { id: 'run-2', name: 'Code Review Security Audit', module: 'code_review', status: 'success', latency: 1420, tokens: 840, cost: 0.00052, date: '11:21:44' },
-  { id: 'run-3', name: 'Standard Assistant Chat Completion', module: 'chat', status: 'success', latency: 620, tokens: 180, cost: 0.00008, date: '11:18:12' },
-  { id: 'run-4', name: 'Unit Test Suite Generator', module: 'repo_agent', status: 'warning', latency: 2800, tokens: 1650, cost: 0.00110, date: '10:55:01' },
-]
-
-const LANGSMITH_RUN_TREES: Record<string, any[]> = {
-  'run-1': [
-    { id: 'r1-n1', name: 'RAG Pipeline Entrypoint', type: 'pipeline', latency: 980, indent: 0, status: 'success', inputs: { query: '¿Cómo funciona RAG en Nexus?', session_id: 'sess-839c' }, outputs: { response: 'El sistema RAG en Nexus recupera fragmentos desde ChromaDB y los inyecta en el prompt del LLM...' } },
-    { id: 'r1-n2', name: 'ChromaDBVectorSearch.query', type: 'db', latency: 245, indent: 1, status: 'success', inputs: { query: 'RAG en Nexus', limit: 3 }, outputs: { documents: ['doc_id_1: RAG indexa archivos...', 'doc_id_2: ChromaDB es el motor...'] } },
-    { id: 'r1-n3', name: 'AugmentedPromptBuilder', type: 'internal', latency: 35, indent: 1, status: 'success', inputs: { raw_query: '¿Cómo funciona RAG?', context_length: 512 }, outputs: { full_prompt: 'System: Eres un asistente... Contexto: RAG indexa... Usuario: ¿Cómo funciona RAG?' } },
-    { id: 'r1-n4', name: 'Groq.llama3_1_8b_instant.generate', type: 'llm', latency: 550, indent: 1, status: 'success', inputs: { model: 'llama-3.1-8b-instant', temp: 0.2, prompt_tokens: 380 }, outputs: { completion: 'El sistema RAG en Nexus recupera fragmentos...', completion_tokens: 70 } },
-    { id: 'r1-n5', name: 'LLMJudge.evaluate_groundedness', type: 'evaluation', latency: 150, indent: 1, status: 'success', inputs: { response: 'El sistema RAG...', context: 'doc_id_1: RAG...' }, outputs: { score: 0.95, matches: ['RAG recupera fragmentos'] } },
-  ],
-  'run-2': [
-    { id: 'r2-n1', name: 'Code Review Security Audit', type: 'pipeline', latency: 1420, indent: 0, status: 'success', inputs: { code: 'def login(): eval(request.args.get("pass"))' }, outputs: { review: 'CRITICAL WARNING: SQL Injection vulnerability and unsafe use of eval()...' } },
-    { id: 'r2-n2', name: 'AST Syntax Parsing', type: 'internal', latency: 90, indent: 1, status: 'success', inputs: { raw_code: 'def login()...' }, outputs: { nodes_parsed: 14, syntax_errors: 0 } },
-    { id: 'r2-n3', name: 'Groq.llama3_3_70b_versatile.analyze', type: 'llm', latency: 1120, indent: 1, status: 'success', inputs: { model: 'llama-3.3-70b-versatile', mode: 'security-audit' }, outputs: { json: { severity: 'CRITICAL', vulnerability: 'Unsafe execution', suggestion: 'Use static matching instead of eval()' } } },
-    { id: 'r2-n4', name: 'JSON_Parse_Validation', type: 'internal', latency: 210, indent: 1, status: 'success', inputs: { raw_json: '{"severity": "CRITICAL"}' }, outputs: { valid: true } },
-  ],
-  'run-3': [
-    { id: 'r3-n1', name: 'Assistant Chat Run', type: 'pipeline', latency: 620, indent: 0, status: 'success', inputs: { message: 'Hola, ¿quién eres?' }, outputs: { response: 'Hola, soy Antigravity, un asistente de IA de Nexus.' } },
-    { id: 'r3-n2', name: 'GuardrailSecurityScanner', type: 'security', latency: 45, indent: 1, status: 'success', inputs: { message: 'Hola, ¿quién eres?' }, outputs: { flagged: false, category: 'safe' } },
-    { id: 'r3-n3', name: 'Groq.llama3_1_8b_instant.chat', type: 'llm', latency: 525, indent: 1, status: 'success', inputs: { model: 'llama-3.1-8b-instant', input: 'Hola...' }, outputs: { response: 'Hola, soy Antigravity...' } },
-    { id: 'r3-n4', name: 'TelemetryPubSub', type: 'internal', latency: 50, indent: 1, status: 'success', inputs: { status: 'PUBLISHED' }, outputs: { ok: true } },
-  ],
-  'run-4': [
-    { id: 'r4-n1', name: 'Unit Test Suite Generator', type: 'pipeline', latency: 2800, indent: 0, status: 'warning', inputs: { repo: 'nexus-observatory' }, outputs: { error: 'LLM rate limit reached, retrying request...' } },
-    { id: 'r4-n2', name: 'Cloning Repository', type: 'internal', latency: 650, indent: 1, status: 'success', inputs: { git_url: 'git@github.com:nexus-observatory.git' }, outputs: { total_files: 24, clone_time_ms: 642 } },
-    { id: 'r4-n3', name: 'Groq.llama3_3_70b.generate_tests', type: 'llm', latency: 1950, indent: 1, status: 'warning', inputs: { prompt: 'Genera tests para app/api.py' }, outputs: { error: 'Rate limit error 429' } },
-    { id: 'r4-n4', name: 'Linear Retry Backoff', type: 'internal', latency: 200, indent: 1, status: 'success', inputs: { attempt: 1 }, outputs: { action: 'RETRY' } },
+  // Generamos un árbol de spans genérico y proporcional basado en la latencia total
+  // Esto hace que el sistema sea agnóstico y funcione con cualquier IA conectada
+  return [
+    { name: `${moduleName} Pipeline Invocation`, type: 'pipeline', latency: totalLatency, cost: totalCost, tokens: totalTokens, offset: 0, status: 'success' },
+    { name: 'Input Pre-processing & Auth', type: 'security', latency: Math.round(totalLatency * 0.10), cost: 0, tokens: 0, offset: 0, status: 'success' },
+    { name: 'Vector / Context Retrieval (Optional)', type: 'db', latency: Math.round(totalLatency * 0.20), cost: 0, tokens: 0, offset: Math.round(totalLatency * 0.10), status: 'success' },
+    { name: 'LLM Core Inference Generation', type: 'llm', latency: Math.round(totalLatency * 0.60), cost: totalCost * 0.9, tokens: Math.round(totalTokens * 0.95), offset: Math.round(totalLatency * 0.30), status: 'success' },
+    { name: 'LLM-As-Judge Guardrails Audit', type: 'evaluation', latency: Math.round(totalLatency * 0.10), cost: totalCost * 0.1, tokens: Math.round(totalTokens * 0.05), offset: Math.round(totalLatency * 0.90), status: c.hallucination_score > 0.5 ? 'warning' : 'success' },
   ]
 }
 
-const HELICONE_RPS_DATA = [
-  { name: '10s ago', rps: 12 },
-  { name: '9s ago', rps: 18 },
-  { name: '8s ago', rps: 15 },
-  { name: '7s ago', rps: 22 },
-  { name: '6s ago', rps: 34 },
-  { name: '5s ago', rps: 29 },
-  { name: '4s ago', rps: 45 },
-  { name: '3s ago', rps: 40 },
-  { name: '2s ago', rps: 52 },
-  { name: '1s ago', rps: 60 },
-  { name: 'Now', rps: 48 },
-]
 
-const HELICONE_CACHE_DATA = [
-  { name: 'Mon', Hits: 45, Misses: 80 },
-  { name: 'Tue', Hits: 60, Misses: 75 },
-  { name: 'Wed', Hits: 90, Misses: 65 },
-  { name: 'Thu', Hits: 120, Misses: 55 },
-  { name: 'Fri', Hits: 110, Misses: 70 },
-  { name: 'Sat', Hits: 40, Misses: 30 },
-  { name: 'Sun', Hits: 35, Misses: 25 },
-]
-
-const HELICONE_LOGS = [
-  { path: '/v1/chat/completions', method: 'POST', status: 200, cache: 'HIT', latency: 45, cost: 0.0, date: '11:29:44' },
-  { path: '/v1/chat/completions', method: 'POST', status: 200, cache: 'MISS', latency: 850, cost: 0.00018, date: '11:29:40' },
-  { path: '/v1/embeddings', method: 'POST', status: 200, cache: 'MISS', latency: 120, cost: 0.00002, date: '11:28:15' },
-  { path: '/v1/chat/completions', method: 'POST', status: 429, cache: 'MISS', latency: 98, cost: 0.0, date: '11:27:03' },
-  { path: '/v1/chat/completions', method: 'POST', status: 200, cache: 'HIT', latency: 12, cost: 0.0, date: '11:25:52' },
-]
-
-const WEAVE_BENCHMARKS = [
-  { version: 'v1.4.0 (Latest)', groundedness: 97.2, hallucination: 2.1, relevancy: 96.5, latency: 1100 },
-  { version: 'v1.3.2 (Stable)', groundedness: 95.8, hallucination: 3.4, relevancy: 94.8, latency: 950 },
-  { version: 'v1.2.0 (Legacy)', groundedness: 88.4, hallucination: 11.2, relevancy: 89.0, latency: 800 },
-]
-
-const WEAVE_AB_TEST = [
-  { metric: 'Accuracy Score', modelA: '94.5%', modelB: '88.2%' },
-  { metric: 'Cost per 1k Tok', modelA: '$0.59', modelB: '$0.05' },
-  { metric: 'Response Latency', modelA: '1.45s', modelB: '0.62s' },
-  { metric: 'Groundedness Rate', modelA: '97.2%', modelB: '91.4%' },
-  { metric: 'Fallback Errors', modelA: '0.4%', modelB: '1.8%' },
-]
-
-const WEAVE_FAIL_LOGS = [
-  { id: 'fail-1', rule: 'Groundedness Threshold < 0.85', value: 0.62, prompt: '¿Cuál es la fórmula del motor gravitacional?', response: 'El motor gravitacional usa antimateria ionizada para doblar el espacio-tiempo de forma lineal.' },
-  { id: 'fail-2', rule: 'PII Leak Detection', value: 'High Danger', prompt: 'Registrar usuario Cristian Criollo pass: 123456', response: 'El usuario Cristian Criollo ha sido registrado con contraseña: 123456 en la base de datos local.' },
-]
-
-const PHOENIX_EMBEDDINGS_DATA = [
-  { x: 12, y: 15, z: 200, label: 'def login(): eval(pass)', category: 'code_review', drift: 0.42, name: 'eval Code Injection' },
-  { x: 14, y: 13, z: 200, label: 'SELECT * FROM users WHERE id = + id', category: 'code_review', drift: 0.35, name: 'Raw SQL Concatenation' },
-  { x: 11, y: 16, z: 200, label: 'jwt.decode(token, verify=False)', category: 'code_review', drift: 0.28, name: 'JWT Bypass Auth' },
-  { x: 45, y: 52, z: 200, label: '¿Qué es Nexus Observatory?', category: 'rag', drift: 0.05, name: 'Nexus Definition' },
-  { x: 42, y: 55, z: 200, label: 'Soporte de carpetas webkitdirectory en RAG', category: 'rag', drift: 0.12, name: 'RAG Directory Upload' },
-  { x: 47, y: 49, z: 200, label: 'ChromaDB collection rules and settings', category: 'rag', drift: 0.08, name: 'ChromaDB Naming Rules' },
-  { x: -20, y: -25, z: 200, label: 'Hola, ¿cómo estás hoy?', category: 'chat', drift: 0.01, name: 'User Greeting' },
-  { x: -18, y: -22, z: 200, label: '¿Quién eres tú y qué sabes hacer?', category: 'chat', drift: 0.02, name: 'AI Identity Check' },
-  { x: -22, y: -27, z: 200, label: 'Gracias por tu gran ayuda con el código', category: 'chat', drift: 0.03, name: 'User Gratitude' },
-]
-
-const PHOENIX_DRIFT_TIMELINE = [
-  { name: 'Week 1', drift: 0.02 },
-  { name: 'Week 2', drift: 0.04 },
-  { name: 'Week 3', drift: 0.08 },
-  { name: 'Week 4', drift: 0.14 },
-  { name: 'Week 5', drift: 0.24 },
-]
-
-const PHOENIX_LATENCY_VS_CHUNKS = [
-  { chunks: 1, latency: 140 },
-  { chunks: 2, latency: 190 },
-  { chunks: 3, latency: 245 },
-  { chunks: 4, latency: 310 },
-  { chunks: 5, latency: 420 },
-]
 
 export function Dashboard() {
   const { user, updateUser } = useAuth()
@@ -282,9 +153,8 @@ export function Dashboard() {
   const { data: latencyHistory, error: latencyError } = useLatencyHistory(isPersonal, 25)
   const { data: costHistory,   error: costError }    = useCostHistory(isPersonal, 25)
 
-  // Router Search Params for tabs
-  const [searchParams, setSearchParams] = useSearchParams()
-  const activeTab = searchParams.get('tab') || 'general'
+  // Restaurar pestañas
+  const [activeTab, setActiveTab] = React.useState('general')
 
   // Contextualization Onboarding Modal States
   const [showContextModal, setShowContextModal] = React.useState(false)
@@ -323,11 +193,17 @@ export function Dashboard() {
 
   // Spans Explorer & Telemetry Hub State
   const [selectedTrace, setSelectedTrace] = React.useState<any>(null)
-  const [telemetryLogs, setTelemetryLogs] = React.useState<string[]>([])
 
   // LangSmith: usar conversaciones reales como "runs"
   const [selectedConvId, setSelectedConvId] = React.useState<number | null>(null)
   const [selectedSpanNode, setSelectedSpanNode] = React.useState<any>(null)
+
+  // TRM (Tasa Representativa del Mercado)
+  const [adminData, setAdminData] = React.useState<any>(null)
+  React.useEffect(() => {
+    adminAPI.getDashboard().then(res => setAdminData(res.data)).catch(console.error)
+  }, [])
+  const trm = adminData?.trm_usd_cop || 4200
 
   // Seleccionar primera conversación real como traza activa cuando cargan
   React.useEffect(() => {
@@ -344,8 +220,6 @@ export function Dashboard() {
   const selectedConv = metrics?.recent_conversations?.find(c => c.id === selectedConvId) || null
   const selectedSpans = selectedConv ? getSpansForConversation(selectedConv) : []
 
-  // Phoenix hovered embedding state
-  const [hoveredEmbedding, setHoveredEmbedding] = React.useState<any>(PHOENIX_EMBEDDINGS_DATA[3])
 
   // Seleccionar automáticamente la primera traza al cargar
   React.useEffect(() => {
@@ -355,12 +229,14 @@ export function Dashboard() {
   }, [metrics, selectedTrace])
 
   // Consola OTEL — basada en conversaciones reales de la DB
+  const [telemetryLogs, setTelemetryLogs] = React.useState<any[]>([])
+
   React.useEffect(() => {
     const timeNow = new Date()
     const initial = [
-      `[${new Date(timeNow.getTime() - 40000).toLocaleTimeString()}] [OTEL-SPAN] parent_span=0x8f3c module=SYSTEM - Telemetry hub synced, listening...`,
-      `[${new Date(timeNow.getTime() - 25000).toLocaleTimeString()}] [OTEL-SPAN] spans_published=${metrics?.total_conversations ?? 0}, state=CONNECTED`,
-      `[${new Date(timeNow.getTime() - 10000).toLocaleTimeString()}] [OTEL-SPAN] ChromaDB collection verified: collection_name=nexus-observatory`,
+      { time: new Date(timeNow.getTime() - 40000).toLocaleTimeString(), trace: '0x8F3C', module: 'SYSTEM', msg: 'Telemetry hub synced, listening...', status: 'SUCCESS' },
+      { time: new Date(timeNow.getTime() - 25000).toLocaleTimeString(), trace: '0x8F3D', module: 'SYSTEM', msg: `spans_published=${metrics?.total_conversations ?? 0}, state=CONNECTED`, status: 'SUCCESS' },
+      { time: new Date(timeNow.getTime() - 10000).toLocaleTimeString(), trace: '0x8F3E', module: 'SYSTEM', msg: 'ChromaDB collection verified', status: 'SUCCESS' },
     ]
     setTelemetryLogs(initial)
 
@@ -370,34 +246,28 @@ export function Dashboard() {
         const time = new Date().toLocaleTimeString()
         const spans = getSpansForConversation(randConv)
         const randomSpan = spans[Math.floor(Math.random() * spans.length)]
-        const traceId = randConv.id.toString(16).padStart(8, '0')
-        const newLog = `[${time}] [OTEL-SPAN] trace_id=0x${traceId} module=${randConv.module?.toUpperCase()} - "${randomSpan.name}" latency=${randomSpan.latency}ms status=${randomSpan.status?.toUpperCase()}`
-        setTelemetryLogs(prev => [newLog, ...prev].slice(0, 15))
+        const traceId = randConv.id.toString(16).toUpperCase().padStart(4, '0')
+        
+        setTelemetryLogs(prev => [{
+          time,
+          trace: `0x${traceId}`,
+          module: randConv.module?.toUpperCase(),
+          model: randConv.model,
+          msg: `"${randomSpan.name}" latency=${randomSpan.latency}ms`,
+          status: randomSpan.status?.toUpperCase() || 'SUCCESS',
+          hallucination: randConv.hallucination_score
+        }, ...prev].slice(0, 15))
       }
     }, 4500)
 
     return () => clearInterval(interval)
   }, [metrics])
 
-  // Simulator State
-  const [simUsers, setSimUsers] = React.useState(1000)
-  const [simModel, setSimModel] = React.useState('llama-3.1-8b-instant')
-  
-  const SIM_MODELS: Record<string, {input: number, output: number, name: string}> = {
-    'llama-3.1-8b-instant': { input: 0.05, output: 0.08, name: 'Llama 3.1 8B (Rápido)' },
-    'llama-3.3-70b-versatile': { input: 0.59, output: 0.79, name: 'Llama 3.3 70B (Preciso)' },
-  }
-  
-  const avgTokens = metrics?.total_conversations ? (metrics.total_tokens / metrics.total_conversations) : 0
-  const avgInput = avgTokens * 0.7 // estimate
-  const avgOutput = avgTokens * 0.3
-  
-  const simCostPerConv = avgTokens > 0 ? (avgInput * SIM_MODELS[simModel].input + avgOutput * SIM_MODELS[simModel].output) / 1_000_000 : 0
-  const simTotalMonthly = simCostPerConv * simUsers * 30 // 30 convs per user/month
+
 
   const moduleData = metrics
     ? Object.entries(metrics.conversations_by_module).map(([key, count]) => ({
-        name: MODULE_LABELS[key] || key, count, color: MODULE_COLORS[key] || '#0e4aff',
+        name: formatModuleName(key), count, color: stringToColor(key),
       }))
     : []
 
@@ -437,7 +307,7 @@ export function Dashboard() {
 
   const costData = [...costHistory].reverse().slice(0, 15).map((d, i) => ({
     name: `#${i + 1}`,
-    cost: parseFloat((d.cost * 1_000_000).toFixed(4)), // µUSD
+    cost: parseFloat(((d.cost_usd || 0) * 1_000_000).toFixed(4)), // µUSD
     module: d.module,
   }))
 
@@ -460,32 +330,26 @@ export function Dashboard() {
 
         {/* ── HIGH TECH TABS DOCK DOCK AND RECORDAR BUTTON ── */}
         <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 bg-nexus-darker/60 backdrop-blur-md p-2 rounded-xl border border-white/5 shadow-inner flex-grow">
+          {/* TABS */}
+          <div className="flex bg-white/5 p-1 rounded-xl border border-white/5 backdrop-blur-md overflow-x-auto nexus-scrollbar">
             {[
-              { id: 'general', label: 'Monitor General', icon: Activity, activeColor: 'bg-nexus-cyan/15 border-nexus-cyan text-nexus-cyan' },
-              { id: 'langsmith', label: 'LangSmith Traces', icon: Network, activeColor: 'bg-nexus-success/15 border-nexus-success text-nexus-success' },
-              { id: 'helicone', label: 'Helicone Proxy', icon: Gauge, activeColor: 'bg-nexus-cyan/15 border-nexus-cyan text-nexus-cyan' },
-              { id: 'weave', label: 'W&B Weave Evaluator', icon: Layers, activeColor: 'bg-nexus-warn/15 border-nexus-warn text-nexus-warn' },
-              { id: 'phoenix', label: 'Phoenix Embeddings', icon: Compass, activeColor: 'bg-nexus-blue/15 border-nexus-blue text-nexus-blue' },
-            ].map((t) => {
-              const Icon = t.icon
-              const isActive = activeTab === t.id
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => setSearchParams({ tab: t.id })}
-                  className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg border transition-all duration-300 font-mono text-[10px] tracking-wider uppercase ${
-                    isActive 
-                      ? t.activeColor + ' shadow-[0_0_15px_rgba(0,212,255,0.08)] font-bold scale-[1.02]' 
-                      : 'bg-transparent border-transparent text-nexus-dim hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <Icon size={12} className={isActive ? '' : 'text-nexus-dim'} />
-                  <span>{t.label}</span>
-                </button>
-              )
-            })}
+              { id: 'general', label: 'Métricas Reales', icon: <Activity size={14} />, color: 'text-nexus-cyan', activeBg: 'bg-nexus-cyan/20 border-nexus-cyan' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-[10px] uppercase tracking-widest font-bold transition-all duration-300 border border-transparent whitespace-nowrap
+                  ${activeTab === tab.id 
+                    ? `${tab.activeBg} ${tab.color} shadow-lg` 
+                    : 'text-nexus-dim hover:text-white hover:bg-white/5'}`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
           </div>
+
+          <div className="flex-grow"></div>
           
           {isAdmin && (
             <button
@@ -499,18 +363,19 @@ export function Dashboard() {
 
           <button
             onClick={() => setShowContextModal(true)}
-            className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-nexus-cyan/40 bg-nexus-cyan/10 text-nexus-cyan hover:bg-nexus-cyan/25 transition-all duration-300 font-mono text-[10px] tracking-wider uppercase font-bold shadow-[0_0_15px_rgba(0,212,255,0.08)] hover:scale-[1.02] active:scale-[0.98] lg:self-stretch"
+            className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-nexus-cyan/40 bg-nexus-cyan/10 text-nexus-cyan hover:bg-nexus-cyan/25 transition-all duration-300 font-mono text-[10px] tracking-wider uppercase font-bold shadow-[0_0_15px_rgba(0,212,255,0.08)] hover:scale-[1.02] active:scale-[0.98] lg:self-stretch no-print"
           >
             <HelpCircle size={13} className="animate-pulse text-nexus-cyan" />
             <span>RECORDAR</span>
           </button>
+          
+          <PDFReportGenerator targetElementId="corporate-pdf-template" />
         </div>
 
         {/* ==================================================== */}
-        {/* TAB 1: GENERAL SYSTEM MONITOR                        */}
+        {/* DASHBOARD CONTENT (Printable Area)                   */}
         {/* ==================================================== */}
-        {activeTab === 'general' && (
-          <div className="flex flex-col gap-4 animate-fade-in">
+        <div id="dashboard-printable-area" className="flex flex-col gap-4 animate-fade-in pb-10">
             {metricsError && (
               <div className="nexus-panel p-4 border-nexus-danger/40 bg-nexus-danger/5 flex items-center gap-3">
                 <WifiOff size={16} className="text-nexus-danger flex-shrink-0" />
@@ -521,12 +386,16 @@ export function Dashboard() {
               </div>
             )}
 
-            {loading && !metrics ? (
-              <div className="flex h-64 items-center justify-center">
-                <NexusLoader message="CARGANDO TELEMETRÍA..." fullscreen={false} />
-              </div>
-            ) : (
+
+
+            {activeTab === 'general' && (
               <>
+                {loading && !metrics ? (
+                  <div className="flex h-64 items-center justify-center">
+                    <NexusLoader message="CARGANDO TELEMETRÍA..." fullscreen={false} />
+                  </div>
+                ) : (
+                  <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                   <MetricCard
                     label="Conversaciones totales"
@@ -674,9 +543,9 @@ export function Dashboard() {
                     </div>
                     <div className="flex flex-col gap-1 items-end justify-center h-full flex-grow">
                       <span className="font-display text-4xl font-bold text-nexus-accent">
-                        ${((metrics?.total_cost_usd || 0) * 4100).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        ${((metrics?.total_cost_usd || 0) * trm).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                       </span>
-                      <span className="font-mono text-[10px] text-nexus-dim">Pesos Colombianos (Tasa aprox. $4,100)</span>
+                      <span className="font-mono text-[10px] text-nexus-dim">Pesos Colombianos (Tasa aprox. ${trm.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span>
                     </div>
                   </div>
                 </div>
@@ -705,7 +574,7 @@ export function Dashboard() {
                             style={{ animationDelay: `${i * 50}ms` }}
                           >
                             <td className="py-2.5 pr-4">
-                              <Badge label={MODULE_LABELS[c.module] || c.module} color={c.module === 'chat' ? 'blue' : c.module === 'rag' ? 'cyan' : c.module === 'code_review' ? 'accent' : 'orange'} />
+                              <Badge label={c.module?.toUpperCase() || 'CHAT'} color={c.module === 'chat' ? 'blue' : c.module === 'rag' ? 'cyan' : c.module === 'code_review' ? 'accent' : 'orange'} />
                             </td>
                             <td className="py-2.5 pr-4 font-mono text-[9px] text-nexus-dim truncate max-w-[100px]">
                               {(c as any).model || '—'}
@@ -740,13 +609,17 @@ export function Dashboard() {
                     <div className="lg:col-span-7 flex flex-col gap-4">
                       {selectedTrace ? (
                         <div className="bg-nexus-darker/80 border border-white/5 rounded-xl p-4 flex flex-col gap-4">
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border-b border-white/5 pb-3">
+                          <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 border-b border-white/5 pb-3">
                             <div className="flex flex-col">
                               <span className="font-mono text-[8px] text-nexus-dim uppercase">TRACE ID</span>
                               <span className="font-mono text-xs text-white truncate font-bold">0x{selectedTrace.id.toString(16).toUpperCase()}</span>
                             </div>
                             <div className="flex flex-col">
-                              <span className="font-mono text-[8px] text-nexus-dim uppercase">LATENCIA TOTAL</span>
+                              <span className="font-mono text-[8px] text-nexus-dim uppercase">MODELO</span>
+                              <span className="font-mono text-xs text-nexus-blue truncate font-bold">{selectedTrace.model || 'N/A'}</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="font-mono text-[8px] text-nexus-dim uppercase">LATENCIA</span>
                               <span className="font-mono text-xs text-nexus-warn font-bold">{selectedTrace.latency_ms} ms</span>
                             </div>
                             <div className="flex flex-col">
@@ -757,6 +630,12 @@ export function Dashboard() {
                               <span className="font-mono text-[8px] text-nexus-dim uppercase">COSTO</span>
                               <span className="font-mono text-xs text-nexus-accent font-bold">${selectedTrace.cost_usd ? selectedTrace.cost_usd.toFixed(6) : '0.000000'}</span>
                             </div>
+                            <div className="flex flex-col">
+                              <span className="font-mono text-[8px] text-nexus-dim uppercase">ALUCINACIÓN</span>
+                              <span className="font-mono text-xs font-bold" style={{ color: selectedTrace.hallucination_score > 0.5 ? '#ff6b35' : '#00e676' }}>
+                                {selectedTrace.hallucination_score != null ? `${(selectedTrace.hallucination_score * 100).toFixed(0)}%` : '—'}
+                              </span>
+                            </div>
                           </div>
 
                           <div className="bg-[#020408]/60 p-2.5 rounded border border-white/5 text-[11px]">
@@ -764,14 +643,18 @@ export function Dashboard() {
                             <p className="font-body text-nexus-text line-clamp-2 truncate">{selectedTrace.user_message}</p>
                           </div>
 
-                          <div className="flex flex-col gap-3.5 mt-2">
+                          <div className="flex flex-col gap-3.5 mt-4 relative">
+                            {/* Subtle background grid for timing visualization */}
+                            <div className="absolute inset-0 flex justify-between pointer-events-none border-x border-white/5 opacity-50">
+                              {[0, 1, 2, 3, 4].map(i => <div key={i} className="h-full border-r border-white/5 w-1/4" />)}
+                            </div>
                             {getSpansForConversation(selectedTrace).map((span: any, index: number) => {
                               const totalLat = selectedTrace.latency_ms || 800
                               const percentOffset = (span.offset / totalLat) * 100
                               const percentWidth = Math.max(4, (span.latency / totalLat) * 100)
                               return (
-                                <div key={index} className="flex flex-col gap-1">
-                                  <div className="flex justify-between items-center text-[10px] font-mono">
+                                <div key={index} className="flex flex-col gap-1 relative z-10">
+                                  <div className="flex justify-between items-center text-[10px] font-mono bg-[#020408]/60 p-1.5 rounded border border-white/5 backdrop-blur-sm shadow-sm">
                                     <span className="text-nexus-text font-bold flex items-center gap-1.5 flex-wrap">
                                       {span.type === 'llm' && <Cpu size={10} className="text-nexus-blue" />}
                                       {span.type === 'db' && <Database size={10} className="text-nexus-cyan" />}
@@ -780,13 +663,15 @@ export function Dashboard() {
                                       {span.type === 'pipeline' && <Network size={10} className="text-white" />}
                                       {span.name}
                                     </span>
-                                    <span className="text-nexus-dim">
-                                      {span.latency} ms {span.tokens ? `• ${span.tokens} t` : ''} {span.cost ? `• $${span.cost.toFixed(6)}` : ''}
+                                    <span className="text-nexus-dim flex items-center gap-2">
+                                      <Badge label={`${span.latency} ms`} color={span.status === 'warning' ? 'orange' : 'cyan'} />
+                                      {span.tokens ? <span className="opacity-70">{span.tokens} t</span> : ''}
+                                      {span.cost ? <span className="opacity-70">${span.cost.toFixed(6)}</span> : ''}
                                     </span>
                                   </div>
-                                  <div className="relative h-2.5 bg-white/5 rounded-full w-full overflow-hidden mt-0.5">
+                                  <div className="relative h-2.5 bg-white/5 rounded-full w-full overflow-hidden mt-1 shadow-inner">
                                     <div 
-                                      className="absolute h-full rounded-full transition-all duration-700"
+                                      className="absolute h-full rounded-full transition-all duration-700 shadow-lg"
                                       style={{
                                         left: `${percentOffset}%`,
                                         width: `${percentWidth}%`,
@@ -825,12 +710,22 @@ export function Dashboard() {
                           <span className="font-mono text-[8px] text-nexus-cyan uppercase font-bold">CONEXIÓN LOCAL</span>
                         </div>
                       </div>
-                      <div className="bg-[#020408] border border-white/5 rounded-xl p-4 h-[210px] overflow-y-auto nexus-scrollbar font-mono text-[10px] flex flex-col gap-1.5 text-nexus-success select-text">
-                        {telemetryLogs.map((log, index) => (
-                          <div key={index} className="opacity-90 hover:opacity-100 transition-opacity">
-                            <span className="text-nexus-dim">{log.substring(0, 10)}</span>
-                            <span className="text-nexus-cyan font-bold">{log.substring(10, 22)}</span>
-                            <span>{log.substring(22)}</span>
+                      <div className="bg-[#020408] border border-white/5 rounded-xl p-4 h-[210px] overflow-y-auto nexus-scrollbar font-mono text-[10px] flex flex-col gap-2 select-text">
+                        {telemetryLogs.map((log: any, index: number) => (
+                          <div key={index} className="opacity-90 hover:opacity-100 transition-opacity flex flex-wrap gap-2 items-center bg-white/[0.02] p-1.5 rounded">
+                            <span className="text-nexus-dim">[{log.time}]</span>
+                            <span className="text-nexus-cyan font-bold">{log.trace}</span>
+                            <span className="text-white bg-white/10 px-1.5 py-0.5 rounded text-[8px]">{log.module}</span>
+                            {log.model && <span className="text-nexus-blue bg-nexus-blue/10 px-1.5 py-0.5 rounded text-[8px]">{log.model}</span>}
+                            <span className="text-nexus-text flex-grow">{log.msg}</span>
+                            {log.hallucination != null && (
+                              <span className="font-bold text-[9px]" style={{ color: log.hallucination > 0.5 ? '#ff6b35' : '#00e676' }}>
+                                H_SCORE={log.hallucination.toFixed(2)}
+                              </span>
+                            )}
+                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${log.status === 'WARNING' ? 'bg-nexus-warn/20 text-nexus-warn' : 'bg-nexus-success/20 text-nexus-success'}`}>
+                              {log.status}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -869,652 +764,10 @@ export function Dashboard() {
                 </div>
               </div>
             )}
-          </div>
+          </>
         )}
+      </div>
 
-        {/* ==================================================== */}
-        {/* TAB 2: LANGSMITH WORKSPACE NATIVE SIMULATION         */}
-        {/* ==================================================== */}
-        {activeTab === 'langsmith' && (
-          <div className="flex flex-col gap-4 animate-fade-in">
-            <div className="nexus-panel p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-l-2 border-l-nexus-success">
-              <div className="flex items-center gap-2">
-                <Network className="text-nexus-success animate-pulse" size={20} />
-                <div>
-                  <span className="font-mono text-xs text-white uppercase font-bold tracking-wider">LangSmith Native Workspace</span>
-                  <p className="font-body text-[10px] text-nexus-dim">Trazas reales de ejecución — datos directos desde la base de datos de NEXUS</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="status-dot online" />
-                <span className="font-mono text-[9px] text-nexus-success uppercase">{metrics?.total_conversations ?? 0} runs registrados</span>
-              </div>
-            </div>
-
-            {!metrics?.recent_conversations?.length ? (
-              <div className="nexus-panel p-8 flex flex-col items-center justify-center gap-3 text-center">
-                <Network size={32} className="text-nexus-dim" />
-                <span className="font-mono text-xs text-nexus-dim uppercase">Sin trazas registradas aún</span>
-                <p className="font-body text-[11px] text-nexus-dim">Interactúa con cualquier módulo (Chat, RAG, Code Review) para generar trazas reales.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                {/* Runs List (Left) — datos reales de recent_conversations */}
-                <div className="lg:col-span-4 flex flex-col gap-3">
-                  <span className="font-mono text-[10px] text-nexus-dim uppercase tracking-wider block">Historial de Ejecuciones (Runs reales)</span>
-                  <div className="flex flex-col gap-2 max-h-[480px] overflow-y-auto nexus-scrollbar pr-1">
-                    {metrics!.recent_conversations.map((conv) => {
-                      const isSelected = selectedConvId === conv.id
-                      const spans = getSpansForConversation(conv)
-                      return (
-                        <div
-                          key={conv.id}
-                          onClick={() => {
-                            setSelectedConvId(conv.id)
-                            setSelectedSpanNode(spans[0] || null)
-                          }}
-                          className={`nexus-panel p-3 cursor-pointer hover:bg-white/5 transition-all border ${
-                            isSelected
-                              ? 'border-nexus-success/50 bg-nexus-success/5'
-                              : 'border-white/5 bg-nexus-darker/40'
-                          }`}
-                        >
-                          <div className="flex justify-between items-start mb-1">
-                            <span className="font-display text-xs text-white font-bold leading-tight truncate max-w-[150px]">
-                              {conv.user_message?.slice(0, 35) || 'Mensaje del usuario'}{(conv.user_message?.length ?? 0) > 35 ? '...' : ''}
-                            </span>
-                            <Badge label={(conv.module || 'chat').toUpperCase()} color={conv.module === 'rag' ? 'cyan' : conv.module === 'code_review' ? 'accent' : 'green'} />
-                          </div>
-                          <div className="flex flex-wrap gap-2 text-[10px] font-mono text-nexus-dim mt-2">
-                            <span>{conv.created_at ? new Date(conv.created_at).toLocaleTimeString('es-CO') : '-'}</span>
-                            <span>•</span>
-                            <span className="text-nexus-warn">{conv.latency_ms}ms</span>
-                            <span>•</span>
-                            <span className="text-nexus-cyan">{conv.tokens_used} t</span>
-                            <span>•</span>
-                            <span className="text-nexus-accent">${(conv.cost_usd ?? 0).toFixed(6)}</span>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Cascade Run Call Tree (Center) — spans dinámicos reales */}
-                <div className="lg:col-span-5 flex flex-col gap-3">
-                  <span className="font-mono text-[10px] text-nexus-dim uppercase tracking-wider block">Árbol de Llamadas (Run Tree / Spans)</span>
-                  <div className="nexus-panel p-4 bg-nexus-darker/60 flex flex-col gap-3.5 h-[480px] overflow-y-auto nexus-scrollbar">
-                    {selectedSpans.length === 0 ? (
-                      <div className="flex items-center justify-center h-full text-nexus-dim font-mono text-xs">Selecciona un run para ver el árbol de spans</div>
-                    ) : selectedSpans.map((node: any) => {
-                      const isSelected = selectedSpanNode?.id === node.id
-                      return (
-                        <div
-                          key={node.id}
-                          onClick={() => setSelectedSpanNode(node)}
-                          className={`flex flex-col gap-1 cursor-pointer p-2 rounded transition-all border ${
-                            isSelected
-                              ? 'bg-nexus-success/10 border-nexus-success/40'
-                              : 'bg-transparent border-transparent hover:bg-white/5'
-                          }`}
-                          style={{ marginLeft: `${node.indent * 16}px` }}
-                        >
-                          <div className="flex items-center justify-between text-[11px] font-mono">
-                            <span className="font-bold text-white flex items-center gap-1.5 flex-wrap">
-                              {node.type === 'pipeline' && <Network size={11} className="text-nexus-success animate-pulse" />}
-                              {node.type === 'llm' && <Cpu size={11} className="text-nexus-blue animate-pulse" />}
-                              {node.type === 'db' && <Database size={11} className="text-nexus-cyan animate-pulse" />}
-                              {node.type === 'evaluation' && <Sparkles size={11} className="text-nexus-accent animate-pulse" />}
-                              {node.type === 'security' && <ShieldAlert size={11} className="text-nexus-danger animate-pulse" />}
-                              {node.name}
-                            </span>
-                            <span className="text-nexus-warn text-[10px] font-bold">{node.latency} ms</span>
-                          </div>
-                          <div className="flex justify-between items-center text-[9px] font-mono text-nexus-dim mt-0.5 pl-4">
-                            <span>type: {node.type.toUpperCase()}</span>
-                            {node.outputs?.score !== undefined && <span className="text-nexus-success font-bold">score: {node.outputs.score}</span>}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Payload Inspector (Right) — payload real de la conversación */}
-                <div className="lg:col-span-3 flex flex-col gap-3">
-                  <span className="font-mono text-[10px] text-nexus-dim uppercase tracking-wider block">Span Payload Inspector</span>
-                  <div className="nexus-panel p-4 bg-nexus-darker/80 h-[480px] overflow-y-auto nexus-scrollbar flex flex-col gap-4">
-                    {selectedSpanNode && selectedConv ? (
-                      <>
-                        <div>
-                          <span className="font-mono text-[9px] text-nexus-dim uppercase block">SPAN NAME</span>
-                          <span className="font-display text-xs text-white font-bold leading-tight mt-0.5">{selectedSpanNode.name}</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-[10px] font-mono border-t border-b border-white/5 py-2">
-                          <div>
-                            <span className="text-nexus-dim block">TIPO:</span>
-                            <span className="text-nexus-cyan font-bold">{selectedSpanNode.type.toUpperCase()}</span>
-                          </div>
-                          <div>
-                            <span className="text-nexus-dim block">LATENCIA:</span>
-                            <span className="text-nexus-warn font-bold">{selectedSpanNode.latency} ms</span>
-                          </div>
-                          <div>
-                            <span className="text-nexus-dim block">MÓDULO:</span>
-                            <span className="text-nexus-success font-bold">{(selectedConv.module || 'chat').toUpperCase()}</span>
-                          </div>
-                          <div>
-                            <span className="text-nexus-dim block">TOKENS:</span>
-                            <span className="text-nexus-blue font-bold">{selectedConv.tokens_used}</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                          <span className="font-mono text-[9px] text-nexus-dim uppercase">INPUT PAYLOAD (Real)</span>
-                          <div className="bg-[#020408] border border-white/5 p-2 rounded text-[10px] font-mono text-nexus-success overflow-x-auto select-text">
-                            <pre>{JSON.stringify({ message: selectedConv.user_message, module: selectedConv.module, tokens_in: Math.round((selectedConv.tokens_used ?? 0) * 0.7) }, null, 2)}</pre>
-                          </div>
-                        </div>
-                        <div className="flex flex-col gap-1.5 mt-1">
-                          <span className="font-mono text-[9px] text-nexus-dim uppercase">OUTPUT PAYLOAD (Real)</span>
-                          <div className="bg-[#020408] border border-white/5 p-2 rounded text-[10px] font-mono text-nexus-cyan overflow-x-auto select-text">
-                            <pre>{JSON.stringify({ latency_ms: selectedConv.latency_ms, cost_usd: selectedConv.cost_usd, hallucination_score: selectedConv.hallucination_score ?? 'N/A', tokens_out: Math.round((selectedConv.tokens_used ?? 0) * 0.3) }, null, 2)}</pre>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-nexus-dim font-mono text-xs text-center">
-                        Selecciona un span del árbol para auditar su carga útil JSON
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Human feedback block — calculado desde conversaciones reales */}
-            {metrics && (
-              <div className="nexus-panel p-4 flex flex-col md:flex-row items-center justify-between gap-4 bg-nexus-darker/20">
-                <div className="flex items-center gap-3">
-                  <ThumbsUp size={16} className="text-nexus-success" />
-                  <span className="font-mono text-xs text-white uppercase font-bold tracking-wider">Auditor de Calidad de Respuestas (LLM-Judge)</span>
-                </div>
-                <div className="flex gap-4">
-                  <div className="flex items-center gap-2">
-                    <ThumbsUp size={12} className="text-nexus-success" />
-                    <span className="font-mono text-xs font-bold text-nexus-success">
-                      Groundedness: {metrics.avg_hallucination_score != null ? `${Math.round((1 - metrics.avg_hallucination_score) * 100)}%` : 'N/A'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <ThumbsDown size={12} className="text-nexus-warn" />
-                    <span className="font-mono text-xs font-bold text-nexus-warn">
-                      Alucinación avg: {metrics.avg_hallucination_score != null ? `${Math.round(metrics.avg_hallucination_score * 100)}%` : 'N/A'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ==================================================== */}
-        {/* TAB 3: HELICONE LLM OBSERVABILITY PROXY              */}
-        {/* ==================================================== */}
-        {activeTab === 'helicone' && (() => {
-          const proxyConvs = metrics?.recent_conversations || [];
-          const totalCost = proxyConvs.reduce((acc, c) => acc + (c.cost_usd || 0), 0);
-          
-          // Cost breakdown by module
-          const costByModule = proxyConvs.reduce((acc, c) => {
-            const mod = c.module || 'chat';
-            acc[mod] = (acc[mod] || 0) + (c.cost_usd || 0);
-            return acc;
-          }, {} as Record<string, number>);
-
-          // Generar datos para gráfica de costos
-          const costChartData = Object.keys(costByModule).map(mod => ({
-            name: mod.toUpperCase(),
-            cost: costByModule[mod],
-            percent: totalCost > 0 ? Math.round((costByModule[mod] / totalCost) * 100) : 0,
-            color: mod === 'rag' ? 'bg-nexus-cyan' : mod === 'code_review' ? 'bg-nexus-warn' : 'bg-nexus-blue'
-          })).sort((a, b) => b.cost - a.cost);
-
-          // Generar logs de proxy
-          const proxyLogs = proxyConvs.slice(0, 15).map(c => ({
-            path: `/v1/${c.module || 'chat'}/completions`,
-            method: 'POST',
-            status: 200,
-            latency: c.latency_ms,
-            cost: c.cost_usd || 0,
-            date: c.created_at ? new Date(c.created_at).toLocaleTimeString('es-CO') : '-'
-          }));
-
-          return (
-            <div className="flex flex-col gap-4 animate-fade-in">
-              <div className="nexus-panel p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-l-2 border-l-nexus-cyan">
-                <div className="flex items-center gap-2">
-                  <Gauge className="text-nexus-cyan animate-pulse" size={20} />
-                  <div>
-                    <span className="font-mono text-xs text-white uppercase font-bold tracking-wider">Helicone LLM Observability Proxy</span>
-                    <p className="font-body text-[10px] text-nexus-dim">Métricas de latencia, costo y distribución por modelo en tiempo real</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-[9px] text-nexus-dim uppercase">{proxyConvs.length} peticiones proxy registradas</span>
-                </div>
-              </div>
-
-              {/* Stats Row */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="nexus-panel p-4 border-l-4 border-l-nexus-success">
-                  <span className="font-mono text-[9px] text-nexus-dim uppercase block">Latencia Promedio del Proxy</span>
-                  <span className="font-display text-2xl font-bold text-nexus-success block mt-1">{metrics?.avg_latency_ms ? Math.round(metrics.avg_latency_ms) : 0}ms</span>
-                  <span className="font-mono text-[9px] text-nexus-dim">Tiempo total end-to-end</span>
-                </div>
-                <div className="nexus-panel p-4 border-l-4 border-l-nexus-accent">
-                  <span className="font-mono text-[9px] text-nexus-dim uppercase block">Gasto Acumulado Reciente</span>
-                  <span className="font-display text-2xl font-bold text-nexus-accent block mt-1">${totalCost.toFixed(5)}</span>
-                  <span className="font-mono text-[9px] text-nexus-dim">USD en los últimos {proxyConvs.length} requests</span>
-                </div>
-                <div className="nexus-panel p-4 border-l-4 border-l-nexus-blue">
-                  <span className="font-mono text-[9px] text-nexus-dim uppercase block">Llamadas Totales</span>
-                  <span className="font-display text-2xl font-bold text-nexus-blue block mt-1">{metrics?.total_conversations || 0}</span>
-                  <span className="font-mono text-[9px] text-nexus-dim">Peticiones históricas al API</span>
-                </div>
-              </div>
-
-              {/* Model cost breakdown bar chart */}
-              <div className="nexus-panel p-4">
-                <span className="font-mono text-[10px] text-nexus-dim uppercase tracking-wider block mb-3">Distribución de Costo por Módulo (Proxy View)</span>
-                <div className="flex flex-col gap-3">
-                  {costChartData.length > 0 ? costChartData.map((model, idx) => (
-                    <div key={idx} className="flex flex-col gap-1 text-xs">
-                      <div className="flex justify-between font-mono text-[10px]">
-                        <span className="text-white font-bold">{model.name}</span>
-                        <span className="text-nexus-dim">${model.cost.toFixed(5)} USD ({model.percent}%)</span>
-                      </div>
-                      <div className="h-2 bg-nexus-dark rounded-full overflow-hidden">
-                        <div className={`h-full ${model.color} rounded-full`} style={{ width: `${model.percent}%` }} />
-                      </div>
-                    </div>
-                  )) : (
-                    <div className="text-nexus-dim text-xs font-mono">No hay datos de costos aún.</div>
-                  )}
-                </div>
-              </div>
-
-              {/* Proxy Logs Ledger */}
-              <div className="nexus-panel p-4">
-                <span className="font-mono text-[10px] text-nexus-dim uppercase tracking-wider block mb-3">Proxy Request/Response Log Console (Datos Reales)</span>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left">
-                    <thead>
-                      <tr className="border-b border-nexus-blue/20">
-                        {['METHOD', 'API PATH', 'STATUS', 'LATENCIA', 'COSTO', 'DATE'].map(h => (
-                          <th key={h} className="pb-2 text-nexus-dim font-mono text-[9px] tracking-widest">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {proxyLogs.map((log, idx) => (
-                        <tr key={idx} className="border-b border-white/5 font-mono text-[11px] hover:bg-white/5 transition-colors">
-                          <td className="py-2.5 text-nexus-cyan font-bold">{log.method}</td>
-                          <td className="py-2.5 text-white max-w-[200px] truncate">{log.path}</td>
-                          <td className="py-2.5">
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-nexus-success/15 text-nexus-success">
-                              {log.status}
-                            </span>
-                          </td>
-                          <td className="py-2.5 text-nexus-warn font-bold">{log.latency} ms</td>
-                          <td className="py-2.5 text-nexus-accent">${log.cost.toFixed(5)}</td>
-                          <td className="py-2.5 text-nexus-dim">{log.date}</td>
-                        </tr>
-                      ))}
-                      {proxyLogs.length === 0 && (
-                        <tr>
-                          <td colSpan={6} className="py-4 text-center text-nexus-dim font-mono text-xs">Sin registros recientes</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )
-        })()}
-
-        {/* ==================================================== */}
-        {/* TAB 4: W&B WEAVE EVALUATOR — datos reales de DB      */}
-        {/* ==================================================== */}
-        {activeTab === 'weave' && (() => {
-          // Conversaciones con scores de evaluación (RAG y repo_chat tienen groundedness real)
-          const evalConvs = (metrics?.recent_conversations || []).filter(c => c.hallucination_score != null)
-          const avgGroundedness = evalConvs.length
-            ? Math.round(evalConvs.reduce((s, c) => s + (1 - (c.hallucination_score ?? 0)), 0) / evalConvs.length * 100)
-            : null
-          const avgHallucination = evalConvs.length
-            ? Math.round(evalConvs.reduce((s, c) => s + (c.hallucination_score ?? 0), 0) / evalConvs.length * 100)
-            : null
-          const avgLatency = evalConvs.length
-            ? Math.round(evalConvs.reduce((s, c) => s + (c.latency_ms ?? 0), 0) / evalConvs.length)
-            : null
-          // Datos del chart de groundedness por conversación
-          const groundednessChart = evalConvs.slice(0, 12).map((c, i) => ({
-            name: `#${i+1}`,
-            groundedness: Math.round((1 - (c.hallucination_score ?? 0)) * 100),
-            hallucination: Math.round((c.hallucination_score ?? 0) * 100),
-            module: c.module,
-          }))
-          return (
-            <div className="flex flex-col gap-4 animate-fade-in">
-              <div className="nexus-panel p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-l-2 border-l-nexus-warn">
-                <div className="flex items-center gap-2">
-                  <Layers className="text-nexus-warn animate-pulse" size={20} />
-                  <div>
-                    <span className="font-mono text-xs text-white uppercase font-bold tracking-wider">Evaluador LLM-as-Judge (Groundedness & Hallucination)</span>
-                    <p className="font-body text-[10px] text-nexus-dim">Scores reales calculados por Groq LLM-as-judge en cada respuesta RAG y Repo Chat</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-[9px] text-nexus-dim uppercase">{evalConvs.length} evaluaciones registradas</span>
-                </div>
-              </div>
-
-              {/* Banner W&B */}
-              <div className="nexus-panel p-3 border border-nexus-warn/30 bg-nexus-warn/5 flex items-center gap-3">
-                <AlertTriangle size={14} className="text-nexus-warn flex-shrink-0" />
-                <p className="font-mono text-[10px] text-nexus-warn">
-                  <span className="font-bold">W&B Weave es una herramienta externa.</span> Para activar el tracking completo de experimentos y versiones de prompts, configura <code className="bg-black/40 px-1 rounded">WANDB_API_KEY</code> en el backend.
-                  Los scores de groundedness y alucinación mostrados aquí son reales, calculados por el LLM-judge interno de NEXUS.
-                </p>
-              </div>
-
-              {/* KPIs reales */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="nexus-panel p-4 border-l-4 border-l-nexus-success">
-                  <span className="font-mono text-[9px] text-nexus-dim uppercase block">Groundedness Promedio</span>
-                  <span className="font-display text-2xl font-bold text-nexus-success block mt-1">
-                    {avgGroundedness != null ? `${avgGroundedness}%` : 'N/A'}
-                  </span>
-                  <span className="font-mono text-[9px] text-nexus-dim">Score de fundamentación en contexto</span>
-                </div>
-                <div className="nexus-panel p-4 border-l-4 border-l-nexus-warn">
-                  <span className="font-mono text-[9px] text-nexus-dim uppercase block">Tasa de Alucinación Promedio</span>
-                  <span className="font-display text-2xl font-bold text-nexus-warn block mt-1">
-                    {avgHallucination != null ? `${avgHallucination}%` : 'N/A'}
-                  </span>
-                  <span className="font-mono text-[9px] text-nexus-dim">Respuestas fuera del contexto RAG</span>
-                </div>
-                <div className="nexus-panel p-4 border-l-4 border-l-nexus-cyan">
-                  <span className="font-mono text-[9px] text-nexus-dim uppercase block">Latencia Promedio RAG</span>
-                  <span className="font-display text-2xl font-bold text-nexus-cyan block mt-1">
-                    {avgLatency != null ? `${avgLatency}ms` : 'N/A'}
-                  </span>
-                  <span className="font-mono text-[9px] text-nexus-dim">Solo en módulos con evaluación</span>
-                </div>
-              </div>
-
-              {/* Chart real de scores */}
-              {groundednessChart.length > 0 ? (
-                <div className="nexus-panel p-4">
-                  <span className="font-mono text-[10px] text-nexus-dim uppercase tracking-wider block mb-4">Evolución de Groundedness vs Alucinación (Conversaciones Reales)</span>
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={groundednessChart} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(14,74,255,0.05)" />
-                      <XAxis dataKey="name" stroke="#2a3f5f" tick={{ fontFamily: 'Share Tech Mono', fontSize: 10, fill: '#5a7a9f' }} />
-                      <YAxis stroke="#2a3f5f" tick={{ fontFamily: 'Share Tech Mono', fontSize: 10, fill: '#5a7a9f' }} domain={[0, 100]} />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Legend iconType="rect" wrapperStyle={{ fontSize: 9, fontFamily: 'Share Tech Mono', color: '#5a7a9f' }} />
-                      <Bar dataKey="groundedness" name="Groundedness (%)" fill="#00e676" radius={[3, 3, 0, 0]} />
-                      <Bar dataKey="hallucination" name="Alucinación (%)" fill="#ff6b35" radius={[3, 3, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="nexus-panel p-8 flex flex-col items-center justify-center gap-3 text-center">
-                  <Layers size={32} className="text-nexus-dim" />
-                  <span className="font-mono text-xs text-nexus-dim uppercase">Sin evaluaciones registradas aún</span>
-                  <p className="font-body text-[11px] text-nexus-dim">Usa el módulo RAG o Repo Chat para generar conversaciones con scores de groundedness reales.</p>
-                </div>
-              )}
-
-              {/* Tabla de conversaciones evaluadas reales */}
-              {evalConvs.length > 0 && (
-                <div className="nexus-panel p-4">
-                  <span className="font-mono text-[10px] text-nexus-dim uppercase tracking-wider block mb-3">Historial de Evaluaciones LLM-Judge (Datos Reales)</span>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs text-left">
-                      <thead>
-                        <tr className="border-b border-nexus-blue/20">
-                          {['MÓDULO', 'PREGUNTA', 'GROUNDEDNESS', 'ALUCINACIÓN', 'LATENCIA', 'FECHA'].map(h => (
-                            <th key={h} className="pb-2 text-nexus-dim font-mono text-[9px] tracking-widest">{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {evalConvs.map((conv, idx) => {
-                          const ground = Math.round((1 - (conv.hallucination_score ?? 0)) * 100)
-                          const hall = Math.round((conv.hallucination_score ?? 0) * 100)
-                          return (
-                            <tr key={idx} className="border-b border-white/5 font-mono text-[11px] hover:bg-white/5 transition-colors">
-                              <td className="py-2.5">
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                  conv.module === 'rag' ? 'bg-nexus-cyan/15 text-nexus-cyan' : 'bg-nexus-accent/15 text-nexus-accent'
-                                }`}>{(conv.module || '').toUpperCase()}</span>
-                              </td>
-                              <td className="py-2.5 text-white max-w-[180px] truncate">{conv.user_message}</td>
-                              <td className="py-2.5 font-bold" style={{ color: ground >= 70 ? '#00e676' : ground >= 40 ? '#ff6b35' : '#ff2d55' }}>{ground}%</td>
-                              <td className="py-2.5 font-bold" style={{ color: hall <= 30 ? '#00e676' : hall <= 60 ? '#ff6b35' : '#ff2d55' }}>{hall}%</td>
-                              <td className="py-2.5 text-nexus-warn">{conv.latency_ms}ms</td>
-                              <td className="py-2.5 text-nexus-dim">{conv.created_at ? new Date(conv.created_at).toLocaleTimeString('es-CO') : '-'}</td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            {/* A/B Test comparisons */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Table A/B matrix */}
-              <div className="nexus-panel p-4">
-                <span className="font-mono text-[10px] text-nexus-dim uppercase tracking-wider block mb-3">Matriz de Desempeño Comparativa A/B</span>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left">
-                    <thead>
-                      <tr className="border-b border-white/10 font-mono text-[9px] text-nexus-dim">
-                        <th className="pb-2">MÉTRICA CLAVE</th>
-                        <th className="pb-2">MODEL A (LLAMA-3.3-70B)</th>
-                        <th className="pb-2">MODEL B (LLAMA-3.1-8B)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {WEAVE_AB_TEST.map((item, idx) => (
-                        <tr key={idx} className="border-b border-white/5 font-mono text-[11px]">
-                          <td className="py-2 text-nexus-dim">{item.metric}</td>
-                          <td className="py-2 text-nexus-cyan font-bold">{item.modelA}</td>
-                          <td className="py-2 text-nexus-warn">{item.modelB}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* LLM-as-Judge guardrail criteria audits */}
-              <div className="nexus-panel p-4">
-                <span className="font-mono text-[10px] text-nexus-dim uppercase tracking-wider block mb-3">Criterios de Evaluación del Juez LLM</span>
-                <div className="flex flex-col gap-2.5 text-xs">
-                  <div className="bg-white/5 p-2 rounded border border-white/5">
-                    <span className="font-mono text-[9px] text-nexus-cyan block font-bold">1. GROUNDEDNESS (FUNDAMENTACIÓN)</span>
-                    <p className="font-body text-nexus-dim text-[11px] leading-tight mt-0.5">Mide la correlación lógica y cita exacta entre la respuesta del LLM y las fuentes RAG inyectadas.</p>
-                  </div>
-                  <div className="bg-white/5 p-2 rounded border border-white/5">
-                    <span className="font-mono text-[9px] text-nexus-accent block font-bold">2. HALLUCINATION SCORING</span>
-                    <p className="font-body text-nexus-dim text-[11px] leading-tight mt-0.5">Analiza si se introducen declaraciones fácticas no presentes en el contexto recuperado (Guardrail críptico).</p>
-                  </div>
-                  <div className="bg-white/5 p-2 rounded border border-white/5">
-                    <span className="font-mono text-[9px] text-nexus-warn block font-bold">3. INTENT ALIGNMENT</span>
-                    <p className="font-body text-nexus-dim text-[11px] leading-tight mt-0.5">Asegura que el modelo no desvíe su respuesta hacia prompts de inyección o jailbreaks de usuario.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Fail Logs where guardrail triggered */}
-            <div className="nexus-panel p-4 border-l-2 border-l-nexus-danger bg-nexus-danger/5">
-              <div className="flex items-center gap-2 mb-3">
-                <ShieldAlert size={16} className="text-nexus-danger" />
-                <span className="font-mono text-[10px] text-nexus-danger uppercase tracking-wider font-bold">Registro de Fases Críticas y Fallos del Judge</span>
-              </div>
-              <div className="flex flex-col gap-3">
-                {WEAVE_FAIL_LOGS.map((fail) => (
-                  <div key={fail.id} className="bg-[#020408]/60 p-3 rounded border border-nexus-danger/20 text-[11px] font-mono flex flex-col gap-1.5">
-                    <div className="flex justify-between items-center text-[10px]">
-                      <span className="text-nexus-danger font-bold">REGLA DISPARADA: {fail.rule}</span>
-                      <span className="text-nexus-dim">Valoración: {fail.value}</span>
-                    </div>
-                    <div>
-                      <span className="text-nexus-dim block text-[9px]">INPUT PROMPT:</span>
-                      <p className="text-white font-body text-[11px]">{fail.prompt}</p>
-                    </div>
-                    <div>
-                      <span className="text-nexus-dim block text-[9px]">RESPUESTA EN INFRACCIÓN:</span>
-                      <p className="text-[#ff6b35] font-body text-[11px] leading-tight">{fail.response}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          )
-        })()}
-
-        {/* ==================================================== */}
-        {/* TAB 5: ARIZE PHOENIX VECTOR EMBEDDINGS (DATOS REALES)*/}
-        {/* ==================================================== */}
-        {activeTab === 'phoenix' && (() => {
-          // Extraer latencia de los módulos que usan embeddings (rag, repo_chat)
-          const vectorConvs = (metrics?.recent_conversations || []).filter(c => c.module === 'rag' || c.module === 'repo_chat')
-          const latencyTimeline = vectorConvs.slice(0, 15).reverse().map((c, i) => ({
-            name: `#${i + 1}`,
-            latency: c.latency_ms,
-            chunks: Math.round((c.tokens_used ?? 0) / 100), // estimación de chunks recuperados
-          }))
-          const moduleUsage = Object.entries(metrics?.conversations_by_module || {}).map(([mod, count]) => ({
-            category: mod.toUpperCase(),
-            queries: count,
-            drift: Math.random() * 0.1, // Simulado seguro para UI
-            color: mod === 'rag' ? '#00d4ff' : mod === 'code_review' ? '#00ffcc' : '#0e4aff'
-          }))
-
-          return (
-            <div className="flex flex-col gap-4 animate-fade-in">
-              <div className="nexus-panel p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-l-2 border-l-nexus-blue">
-                <div className="flex items-center gap-2">
-                  <Compass className="text-nexus-blue animate-pulse" size={20} />
-                  <div>
-                    <span className="font-mono text-xs text-white uppercase font-bold tracking-wider">Vector Search & Embedding Hub</span>
-                    <p className="font-body text-[10px] text-nexus-dim">Consola de monitoreo de latencia y volumen de consultas vectoriales</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="status-dot online" />
-                  <span className="font-mono text-[9px] text-nexus-success uppercase">Indexación Vectorial Activa</span>
-                </div>
-              </div>
-
-              {/* Banner Phoenix */}
-              <div className="nexus-panel p-3 border border-nexus-warn/30 bg-nexus-warn/5 flex items-center gap-3">
-                <AlertTriangle size={14} className="text-nexus-warn flex-shrink-0" />
-                <p className="font-mono text-[10px] text-nexus-warn">
-                  <span className="font-bold">Arize Phoenix es una herramienta externa.</span> Para activar la proyección UMAP 2D y el análisis profundo de Drift semántico, configura <code className="bg-black/40 px-1 rounded">PHOENIX_HOST</code> en el backend.
-                  Los datos de latencia de búsqueda y volumen mostrados aquí provienen directamente del histórico real de NEXUS.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                {/* Volumen por Módulo — BarChart (Izquierda) */}
-                <div className="lg:col-span-8 flex flex-col gap-3">
-                  <div className="flex justify-between items-center">
-                    <span className="font-mono text-[10px] text-nexus-dim uppercase tracking-wider">Volumen de Consultas por Módulo</span>
-                    <Badge label="DATOS REALES" color="blue" />
-                  </div>
-                  <div className="nexus-panel p-4 bg-nexus-darker/60">
-                    <ResponsiveContainer width="100%" height={320}>
-                      <BarChart data={moduleUsage} margin={{ top: 10, right: 20, bottom: 10, left: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(14,74,255,0.05)" />
-                        <XAxis dataKey="category" stroke="#2a3f5f" tick={{ fontFamily: 'Share Tech Mono', fontSize: 10, fill: '#5a7a9f' }} />
-                        <YAxis stroke="#2a3f5f" tick={{ fontFamily: 'Share Tech Mono', fontSize: 9, fill: '#5a7a9f' }} label={{ value: 'Queries', angle: -90, position: 'insideLeft', fill: '#5a7a9f', fontSize: 9, fontFamily: 'Share Tech Mono' }} />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Bar dataKey="queries" name="Nº Queries" radius={[3, 3, 0, 0]}>
-                          {moduleUsage.map((entry, index) => (
-                            <Cell key={`cell-q-${index}`} fill={entry.color} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                {/* Vector Inspector panel (Right) */}
-                <div className="lg:col-span-4 flex flex-col gap-3">
-                  <span className="font-mono text-[10px] text-nexus-dim uppercase tracking-wider block">Inspección de Búsqueda Vectorial (Reciente)</span>
-                  <div className="nexus-panel p-4 bg-nexus-darker/80 h-[360px] overflow-y-auto nexus-scrollbar flex flex-col gap-4">
-                    {vectorConvs.length > 0 ? (
-                      <>
-                        <div>
-                          <span className="font-mono text-[9px] text-nexus-dim uppercase block">MÓDULO DE BÚSQUEDA</span>
-                          <Badge 
-                            label={vectorConvs[0].module?.toUpperCase() || 'RAG'} 
-                            color={vectorConvs[0].module === 'rag' ? 'cyan' : 'accent'} 
-                          />
-                        </div>
-                        <div>
-                          <span className="font-mono text-[9px] text-nexus-dim uppercase block">TIEMPO DE RESPUESTA</span>
-                          <span className="font-mono text-xs text-nexus-warn block mt-0.5">{vectorConvs[0].latency_ms} ms</span>
-                        </div>
-                        <div>
-                          <span className="font-mono text-[9px] text-nexus-dim uppercase block">TOKENS (Contexto)</span>
-                          <span className="font-mono text-xs text-nexus-blue block mt-0.5">{vectorConvs[0].tokens_used} t</span>
-                        </div>
-                        <div className="bg-[#020408]/60 p-2.5 rounded border border-white/5 text-[11px]">
-                          <span className="font-mono text-[9px] text-nexus-dim uppercase block mb-1">ÚLTIMO QUERY VECTORIAL</span>
-                          <p className="font-body text-nexus-text leading-relaxed select-text">{vectorConvs[0].user_message}</p>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-nexus-dim font-mono text-xs text-center">
-                        Usa el módulo RAG o Repo Chat para registrar consultas vectoriales.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Latency vs Chunks */}
-              <div className="grid grid-cols-1 gap-4 mt-2">
-                <div className="nexus-panel p-4">
-                  <span className="font-mono text-[10px] text-nexus-dim uppercase tracking-wider block mb-4">Evolución de Latencia Vectorial (Conversaciones Recientes)</span>
-                  {latencyTimeline.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={220}>
-                      <AreaChart data={latencyTimeline}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(14,74,255,0.05)" />
-                        <XAxis dataKey="name" stroke="#2a3f5f" tick={{ fontFamily: 'Share Tech Mono', fontSize: 10, fill: '#5a7a9f' }} />
-                        <YAxis stroke="#2a3f5f" tick={{ fontFamily: 'Share Tech Mono', fontSize: 10, fill: '#5a7a9f' }} />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Area type="monotone" dataKey="latency" name="Latencia (ms)" stroke="#0e4aff" fill="rgba(14, 74, 255, 0.15)" strokeWidth={2} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex items-center justify-center h-[220px] text-nexus-dim font-mono text-xs">Sin datos vectoriales</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )
-        })()}
 
       </div>
 
@@ -1612,6 +865,9 @@ export function Dashboard() {
           </div>
         )
       })()}
+
+      {/* PLANTILLA DE PDF EMPRESARIAL OCULTA */}
+      <CorporateReportTemplate metrics={metrics} period="Actual" />
 
     </Layout>
   )

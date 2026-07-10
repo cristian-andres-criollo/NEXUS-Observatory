@@ -4,7 +4,7 @@ from datetime import datetime
 
 
 class RecentConversation(BaseModel):
-    id: int
+    id: str
     module: str
     user_message: str
     tokens_used: int

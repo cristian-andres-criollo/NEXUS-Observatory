@@ -40,8 +40,8 @@ html {
 @layer base {
   body {
     font-family: var(--font-sans);
-    /* Fondo ligeramente más oscuro para mayor contraste */
-    background-color: #02040a;
+    /* Fondo principal limpio */
+    background-color: #0a0a0b;
     color: #f0f4f8;
     font-size: 0.875rem;
     line-height: 1.6;
@@ -62,40 +62,20 @@ html {
 }
 
 @layer components {
-  /* ── Glassmorphism 2.0 Panels ────────────────────────────────────────────── */
+  /* ── Clean SaaS Panels ────────────────────────────────────────────── */
   .nexus-panel {
-    @apply relative overflow-hidden transition-all duration-500 rounded-2xl;
-    /* Base color semi-transparente */
-    background: rgba(4, 10, 25, 0.45);
-    /* Efecto cristal: desenfoque alto y mayor saturación */
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
-    /* Borde fino exterior */
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    /* Sombras: una exterior suave y una interior blanca/cyan muy sutil para simular el borde del cristal */
-    box-shadow: 
-      0 10px 40px -10px rgba(0, 0, 0, 0.5),
-      inset 0 1px 1px rgba(255, 255, 255, 0.06),
-      inset 0 -1px 1px rgba(0, 212, 255, 0.02);
-  }
-  
-  /* Pseudo-elemento para el ruido (noise) del cristal */
-  .nexus-panel::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    opacity: 0.02;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-    pointer-events: none;
+    @apply relative overflow-hidden transition-all duration-300 rounded-xl;
+    /* Fondo oscuro sólido y limpio */
+    background: #18181b; 
+    /* Borde sutil SaaS */
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    /* Sombras base suaves */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
   }
 
   .nexus-panel:hover {
-    border-color: rgba(255, 255, 255, 0.08);
-    box-shadow: 
-      0 15px 50px -10px rgba(0, 0, 0, 0.6),
-      inset 0 1px 2px rgba(255, 255, 255, 0.1),
-      inset 0 -1px 2px rgba(0, 212, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.15);
     transform: translateY(-2px);
   }
   
@@ -293,9 +273,9 @@ html {
   animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
 }
 /* Retrasos para listas */
-.animate-fade-in-up-delay-1 { animation-delay: 0.1s; opacity: 0; }
-.animate-fade-in-up-delay-2 { animation-delay: 0.2s; opacity: 0; }
-.animate-fade-in-up-delay-3 { animation-delay: 0.3s; opacity: 0; }
+.animate-fade-in-up-delay-1 { animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.1s; opacity: 0; }
+.animate-fade-in-up-delay-2 { animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.2s; opacity: 0; }
+.animate-fade-in-up-delay-3 { animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.3s; opacity: 0; }
 
 .animate-float {
   animation: floatAnimation 6s ease-in-out infinite;

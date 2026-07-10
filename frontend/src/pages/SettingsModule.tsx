@@ -42,9 +42,6 @@ export function SettingsModule() {
 
   // Admin Dashboard State
   const [adminData, setAdminData] = useState<AdminDashboardData | null>(null)
-  const [newBudgetCop, setNewBudgetCop] = useState('')
-  const [newTrm, setNewTrm] = useState('')
-  const [savingBudget, setSavingBudget] = useState(false)
   
   // LLM Config State
   const [newLlmProvider, setNewLlmProvider] = useState('groq')
@@ -74,20 +71,7 @@ export function SettingsModule() {
   const [updatingUser, setUpdatingUser] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showEditPassword, setShowEditPassword] = useState(false)
-  // Computed: tokens comprables con el presupuesto actual en el input
-  const previewTokens = (() => {
-    const b = parseInt(newBudgetCop.replace(/\./g, '') || '0')
-    const t = parseFloat(newTrm || String(adminData?.trm_usd_cop || 4200))
-    const c = adminData?.groq_cost_per_million || 0.69
-    if (!b || !t || !c) return 0
-    return Math.floor((b / t / c) * 1_000_000)
-  })()
 
-  // Formatea un número con puntos como separadores de miles (ej: 1500000 → 1.500.000)
-  const formatCOP = (raw: string) => {
-    const digits = raw.replace(/\./g, '')
-    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-  }
 
   // Typography state
   const [fontFamily, setFontFamily] = useState(localStorage.getItem('nexus_font_family') || 'inter')
@@ -188,8 +172,6 @@ export function SettingsModule() {
     try {
       const res = await adminAPI.getDashboard()
       setAdminData(res.data)
-      setNewBudgetCop(res.data.budget_cop.toString())
-      setNewTrm(res.data.trm_usd_cop.toString())
       setNewLlmProvider(res.data.llm_provider || 'groq')
       setNewOllamaUrl(res.data.ollama_base_url || 'http://localhost:11434')
       setNewOllamaModel(res.data.ollama_model || 'llama3')
@@ -242,20 +224,7 @@ export function SettingsModule() {
     }
   }
 
-  const updateBudget = async () => {
-    const cop = parseInt(newBudgetCop.replace(/\D/g, '') || '0')
-    if (cop <= 0) { toast.error('Ingresa un presupuesto válido'); return }
-    setSavingBudget(true)
-    try {
-      await adminAPI.updateSettings(cop, parseFloat(newTrm) || undefined)
-      toast.success('Presupuesto actualizado exitosamente')
-      fetchAdminData()
-    } catch (err: any) {
-      toast.error('Error al actualizar el presupuesto')
-    } finally {
-      setSavingBudget(false)
-    }
-  }
+
 
   const handleUpdateLlm = async () => {
     setSavingLlm(true)
@@ -1021,10 +990,10 @@ export function SettingsModule() {
               {/* ── Header ────────────────────────────────────────────── */}
               <div className="nexus-panel p-6">
                 <h2 className="flex items-center gap-2 font-display text-lg text-white mb-1">
-                  <Database className="text-nexus-warn" size={20} />
-                  MEMBRESÍA ENTERPRISE
+                  <Database className="text-nexus-cyan" size={20} />
+                  ESTADO GLOBAL DEL SISTEMA
                 </h2>
-                <p className="text-xs text-nexus-dim mb-6">El sistema calcula automáticamente cuántos tokens se pueden comprar con el presupuesto en COP, usando la TRM y las tarifas reales de Groq.</p>
+                <p className="text-xs text-nexus-dim mb-6">Métricas generales de usuarios y capacidad de la plataforma.</p>
 
                 {/* Stats rápidas */}
                 {adminData && (
@@ -1039,7 +1008,7 @@ export function SettingsModule() {
                       <div className="text-nexus-cyan text-lg font-bold font-mono">
                         {adminData.total_tokens_purchased.toLocaleString()}
                       </div>
-                      <div className="text-[10px] text-nexus-dim uppercase tracking-wider mt-1">Tokens Comprados</div>
+                      <div className="text-[10px] text-nexus-dim uppercase tracking-wider mt-1">Límite Global de Tokens</div>
                     </div>
                     <div className="p-3 bg-black/40 border border-nexus-success/20 rounded-xl text-center">
                       <div className="text-nexus-success text-lg font-bold font-mono">
@@ -1052,64 +1021,6 @@ export function SettingsModule() {
                       <div className="text-[10px] text-nexus-dim uppercase tracking-wider mt-1">Usuarios del Sistema</div>
                     </div>
                   </div>
-                )}
-
-                {newLlmProvider === 'ollama' ? (
-                  <div className="p-4 bg-nexus-success/10 border border-nexus-success/20 rounded-xl mt-4">
-                    <p className="text-nexus-success text-sm flex items-center gap-2">
-                      <Shield size={16} />
-                      <strong>Facturación Desactivada:</strong> El sistema está utilizando el Motor On-Premise local (Ollama). 
-                      El consumo de tokens es ilimitado y gratuito.
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Inputs de presupuesto */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 mt-4">
-                      <div className="md:col-span-2">
-                        <label className="text-xs text-nexus-dim uppercase tracking-widest font-mono mb-2 block">Presupuesto Enterprise ($ COP)</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-nexus-warn font-bold text-lg">$</span>
-                          <input
-                            type="text"
-                            value={formatCOP(newBudgetCop)}
-                            onChange={e => setNewBudgetCop(e.target.value.replace(/[^0-9]/g, ''))}
-                            className="nexus-input w-full pl-8 text-lg tracking-wider"
-                            placeholder="500.000"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-xs text-nexus-dim uppercase tracking-widest font-mono mb-2 block">TRM (COP/USD)</label>
-                        <input
-                          type="text"
-                          value={formatCOP(newTrm)}
-                          onChange={e => setNewTrm(e.target.value.replace(/[^0-9]/g, ''))}
-                          className="nexus-input w-full tracking-wider"
-                          placeholder="4.200"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Preview en tiempo real */}
-                    {parseInt(newBudgetCop || '0') > 0 && (
-                      <div className="p-3 mb-4 bg-nexus-warn/5 border border-nexus-warn/20 rounded-xl flex items-center justify-between">
-                        <span className="text-xs text-nexus-dim">
-                          <span className="text-white font-bold">${parseInt(newBudgetCop.replace(/\./g, '') || '0').toLocaleString('es-CO')} COP</span>
-                          {' → '}
-                          <span className="text-nexus-dim">(÷ TRM ${parseFloat(newTrm || '4200').toLocaleString()} ÷ ${adminData?.groq_cost_per_million || 0.69}/M tokens)</span>
-                        </span>
-                        <span className="text-nexus-warn font-bold font-mono text-sm">
-                          ≈ {previewTokens.toLocaleString()} tokens
-                        </span>
-                      </div>
-                    )}
-
-                    <button onClick={updateBudget} disabled={savingBudget} className="nexus-btn-primary w-full">
-                      {savingBudget ? <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : <Database size={16} />}
-                      APLICAR PRESUPUESTO
-                    </button>
-                  </>
                 )}
               </div>
 

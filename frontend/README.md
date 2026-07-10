@@ -1,43 +1,37 @@
 # NEXUS Observatory — Frontend
 
-Interfaz React del sistema de observabilidad de LLMs.
+Interfaz React del sistema de observabilidad.
+Para instrucciones detalladas sobre cómo arrancar el proyecto completo (Docker o Desarrollo Local), por favor revisa el **[README principal](../README.md)** en la carpeta raíz.
 
-## Requisitos
-- Node.js 18+
-- Backend corriendo en `http://localhost:8000`
+## Variables de entorno (.env)
 
-## Instalación y arranque
-
-```bash
-npm install
-npm run dev
+El archivo `.env` del frontend solo necesita esta variable:
+```
+VITE_API_URL=/api/v1
 ```
 
-Abre http://localhost:5173
+Esto funciona perfectamente tanto dentro del Monolito de Docker como en desarrollo local, ya que en el archivo `vite.config.ts` hay un proxy configurado hacia `http://127.0.0.1:8000`.
 
-## Variables de entorno
-
-Copia `.env.example` a `.env` y configura:
-
-```
-VITE_API_URL=https://tu-backend.railway.app/api/v1
-```
-
-En desarrollo local no necesitas esta variable (Vite hace proxy automático).
-
-## Deploy en Netlify
-
-1. Conecta este repo a Netlify
-2. Build command: `npm run build`
-3. Publish directory: `dist`
-4. Agrega la variable de entorno `VITE_API_URL` apuntando a tu Railway backend
-
-## Módulos
+## Módulos Principales
 
 | Ruta | Módulo | Descripción |
 |------|--------|-------------|
-| `/` | Dashboard | Métricas globales en tiempo real |
-| `/chat` | Asistente | Chat con IA, monitoreado por las 4 herramientas |
-| `/rag` | Documentos | RAG con detección de alucinaciones (Phoenix) |
-| `/review` | Code Review | Revisión de código con LLM-as-judge (LangSmith) |
-| `/repo` | Repo Agent | Agente multi-paso que analiza repositorios GitHub |
+| `/` | Dashboard | Tablero unificado con métricas locales en tiempo real. |
+| `/chat` | Asistente | Chat con IA, monitoreado por las herramientas de observabilidad. |
+| `/rag` | Documentos | Interfaz para cargar y procesar documentos. |
+| `/review` | Code Review | Revisión de código automatizada. |
+| `/repo` | Repo Agent | Agente multi-paso que analiza repositorios GitHub. |
+
+## 🛠️ Instalación y Ejecución Local
+
+Si deseas correr el frontend de forma local para desarrollo:
+
+1. **Instalar dependencias:**
+   ```bash
+   npm install
+   ```
+
+2. **Arrancar el servidor de desarrollo:**
+   ```bash
+   npm run dev
+   ```

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.db.database import get_db
+from app.db.finops_db import get_finops_db
 from app.services.metrics_service import get_global_metrics, get_latency_history, get_cost_history
 from app.schemas.metrics import GlobalMetrics
 from app.api.routes.auth import get_current_user

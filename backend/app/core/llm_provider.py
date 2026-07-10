@@ -248,6 +248,30 @@ def get_langchain_llm(model: str | None = None, temperature: float = 0.1, max_to
 
 
 # ---------------------------------------------------------------------------
+# FinOps: Estrategia Híbrida (Planner vs Executor) y Enrutamiento
+# ---------------------------------------------------------------------------
+
+def get_planner_llm(temperature: float = 0.1):
+    """
+    Retorna un modelo de frontera (más robusto y costoso) para tareas complejas
+    como planificación y razonamiento profundo.
+    """
+    # Modelo asume un modelo más grande por defecto
+    frontier_model = getattr(settings, "GROQ_PLANNER_MODEL", "llama-3.3-70b-versatile")
+    return get_langchain_llm(model=frontier_model, temperature=temperature)
+
+
+def get_executor_llm(temperature: float = 0.0):
+    """
+    Retorna un modelo más pequeño, liviano y económico para tareas
+    repetitivas, extracción de datos o ejecución de pasos simples.
+    """
+    # Modelo asume un modelo más ligero por defecto
+    small_model = getattr(settings, "GROQ_EXECUTOR_MODEL", "llama3-8b-8192")
+    return get_langchain_llm(model=small_model, temperature=temperature)
+
+
+# ---------------------------------------------------------------------------
 # Modelo de Embeddings local (sentence-transformers)
 # ---------------------------------------------------------------------------
 

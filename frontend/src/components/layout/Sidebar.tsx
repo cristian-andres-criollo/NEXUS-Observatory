@@ -9,6 +9,7 @@ import { useAuth } from '../../context/AuthContext'
 const navItems = [
   { path: '/',          icon: LayoutDashboard, label: 'DASHBOARD',   sub: 'Métricas de uso', plans: ['community', 'team', 'enterprise'] },
   { path: '/chat',      icon: MessageSquare,   label: 'ASISTENTE',   sub: 'Chat Demo', plans: ['community', 'team', 'enterprise'] },
+  { path: '/finops',    icon: Activity,        label: 'FINOPS',      sub: 'Costos y Tokens', plans: ['team', 'enterprise'] },
   { path: '/ab',        icon: Sparkles,        label: 'A/B TESTING', sub: 'Comparación LLM', plans: ['team', 'enterprise'] },
 ]
 
@@ -28,34 +29,32 @@ export function Sidebar({ onClose, isMobile = false }: SidebarProps) {
   const { user } = useAuth()
 
   return (
-    <aside className="w-full h-full bg-nexus-black/40 backdrop-blur-[32px] rounded-3xl border border-white/10 flex flex-col flex-shrink-0 overflow-y-auto nexus-scrollbar relative shadow-[0_16px_60px_-15px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.05)]">
-      {/* Decorative inner glow */}
-      <div className="absolute inset-0 rounded-3xl pointer-events-none" style={{ boxShadow: 'inset 0 0 40px rgba(14,74,255,0.05)' }} />
+    <aside className="w-full h-full bg-nexus-black border-r border-nexus-navy flex flex-col flex-shrink-0 overflow-y-auto nexus-scrollbar relative">
+      {/* Decorative inner glow removed for SaaS clean look */}
 
       {/* Logo Section */}
-      <div className="px-5 py-6 border-b border-white/5 relative z-10 flex-shrink-0">
+      <div className="px-5 py-6 border-b border-nexus-navy relative z-10 flex-shrink-0">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3 w-full">
-            <div className="relative group flex items-center w-40 h-auto">
-              <img 
-                src="/img/logo web.png" 
-                alt="Nexus Logo" 
-                className="w-full h-auto object-contain drop-shadow-[0_0_8px_rgba(0,212,255,0.5)] transition-transform duration-500 group-hover:scale-105" 
-              />
-            </div>
+          <div className="flex flex-col gap-1 w-full">
+            <h1 className="font-display font-bold text-lg text-white tracking-wide">
+              NEXUS
+            </h1>
+            <span className="font-mono text-[10px] text-nexus-dim uppercase tracking-widest">
+              by Shirokage Devs
+            </span>
           </div>
           {/* Close button (Mobile Drawer) */}
           {isMobile && (
             <button
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-nexus-dim hover:text-white hover:bg-nexus-danger/20 hover:border-nexus-danger/50 transition-all active:scale-90"
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-nexus-navy text-nexus-dim hover:text-white hover:bg-nexus-danger/20 transition-all active:scale-90"
               aria-label="Cerrar menú"
             >
               <X size={16} />
             </button>
           )}
         </div>
-        <div className="mt-4 flex items-center gap-2 bg-black/40 border border-white/5 rounded-full px-3 py-1.5 w-max">
+        <div className="mt-4 flex items-center gap-2 bg-nexus-navy rounded-md px-3 py-1.5 w-max">
           <span className="status-dot online" />
           <span className="font-mono text-[9px] text-nexus-success tracking-widest uppercase">Sistemas Operacionales</span>
         </div>
@@ -75,28 +74,19 @@ export function Sidebar({ onClose, isMobile = false }: SidebarProps) {
             end={path === '/'}
             onClick={isMobile ? onClose : undefined}
             className={({ isActive }) =>
-              `flex items-center gap-3.5 px-3 py-3 rounded-2xl transition-all duration-300 group relative overflow-hidden animate-fade-in-up animate-fade-in-up-delay-${(index % 3) + 1} ${
+              `flex items-center gap-3.5 px-3 py-3 rounded-lg transition-all duration-200 group relative overflow-hidden ${
                 isActive
-                  ? 'bg-gradient-to-r from-nexus-blue/20 to-nexus-cyan/5 border border-nexus-cyan/30 text-white shadow-[0_4px_20px_rgba(0,212,255,0.15)]'
-                  : 'text-nexus-dim hover:bg-white/5 hover:text-white border border-transparent hover:border-white/10'
+                  ? 'bg-nexus-blue/10 border-l-2 border-nexus-blue text-white'
+                  : 'text-nexus-dim hover:bg-nexus-navy hover:text-white border-l-2 border-transparent'
               }`
             }
           >
             {({ isActive }) => (
               <>
-                {isActive && (
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-nexus-cyan to-nexus-blue shadow-[0_0_12px_#00d4ff]" />
-                )}
-                {/* Active Hover Background sweep */}
-                <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 pointer-events-none" />
-
-                <div className={`p-1.5 rounded-xl transition-all duration-300 ${isActive ? 'bg-nexus-cyan/20 text-nexus-cyan shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)]' : 'bg-black/30 group-hover:bg-white/10'}`}>
-                  <Icon
-                    size={16}
-                    className={isActive ? 'text-nexus-cyan drop-shadow-[0_0_8px_rgba(0,212,255,0.8)]' : 'text-nexus-dim group-hover:text-white transition-colors'}
-                  />
+                <div className={`p-1.5 rounded-md transition-all duration-300 ${isActive ? 'bg-nexus-blue/20 text-nexus-blue' : 'group-hover:bg-nexus-darker text-nexus-dim group-hover:text-white'}`}>
+                  <Icon size={16} />
                 </div>
-                <div className="min-w-0 flex-1 transition-transform duration-300 group-hover:translate-x-1">
+                <div className="min-w-0 flex-1">
                   <div className={`font-display text-[11px] font-bold tracking-widest uppercase truncate ${isActive ? 'text-white' : ''}`}>{label}</div>
                   <div className="font-body text-[10px] font-medium text-nexus-dim leading-tight truncate">{sub}</div>
                 </div>

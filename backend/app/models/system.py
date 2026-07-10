@@ -7,7 +7,10 @@ class SystemSettings(Base):
     id = Column(Integer, primary_key=True, index=True)
     budget_cop = Column(Integer, default=500000)           # Presupuesto en Pesos Colombianos
     trm_usd_cop = Column(Float, default=4200.0)            # Tasa de cambio COP/USD simulada
-    groq_cost_per_million = Column(Float, default=0.69)    # USD por millón de tokens (promedio ponderado Groq)
+    groq_cost_per_million = Column(Float, default=0.69)    # USD por millón de tokens
+    anthropic_cost_per_million = Column(Float, default=15.0)
+    openai_cost_per_million = Column(Float, default=10.0)
+    google_cost_per_million = Column(Float, default=7.0)
     
     # Configuración del Motor de IA
     llm_provider = Column(String, default="groq")          # "groq" o "ollama"

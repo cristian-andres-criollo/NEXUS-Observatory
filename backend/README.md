@@ -1,58 +1,38 @@
 # NEXUS Observatory — Backend
 
-API FastAPI del sistema de observabilidad de LLMs.
+Este directorio contiene la API FastAPI del sistema de observabilidad.
+Para instrucciones detalladas sobre cómo arrancar el proyecto completo (Docker o Desarrollo Local), por favor revisa el **[README principal](../README.md)** en la carpeta raíz.
 
-## Requisitos
-- Python 3.11+
-- Git instalado (para el módulo de análisis de repos)
+## Variables de entorno (.env)
 
-## Instalación local
+El archivo `.env` está preconfigurado para correr el backend en tu terminal local conectándose a los contenedores Docker de telemetría (PostgreSQL, Langfuse y LiteLLM).
 
-```bash
-# 1. Crear entorno virtual
-python -m venv venv
+| Variable | Descripción |
+|----------|-------------|
+| `GROQ_API_KEYS` | (Opcional) Las llaves ya están inyectadas a nivel de proxy, pero pueden configurarse aquí si omites LiteLLM. |
+| `DATABASE_URL` | Usa SQLite (`sqlite:///./nexus.db`) para gestionar los usuarios locales de la interfaz. |
+| `FINOPS_DATABASE_URL` | Conexión a PostgreSQL en `localhost:5432` para guardar la telemetría real. |
+| `LITELLM_URL` | Conexión al Proxy de IA en `http://localhost:4000`. |
 
-# Windows:
-venv\Scripts\activate
-# Mac/Linux:
-source venv/bin/activate
+## 🛠️ Instalación y Ejecución Local
 
-# 2. Instalar dependencias
-pip install -r requirements.txt
+Si deseas correr el backend de forma local (fuera de Docker) para desarrollo:
 
-# 3. Configurar variables de entorno
-cp .env.example .env
-# Edita .env y agrega tu OPENAI_API_KEY
+1. **Crear y activar el entorno virtual:**
+   ```bash
+   python -m venv venv
+   # En Windows:
+   venv\Scripts\activate
+   # En macOS/Linux:
+   source venv/bin/activate
+   ```
 
-# 4. Arrancar
-uvicorn app.main:app --reload
-```
+2. **Instalar dependencias:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-Abre http://localhost:8000/docs para ver la documentación automática de la API.
-
-## Variables de entorno
-
-| Variable | Obligatoria | Descripción |
-|----------|-------------|-------------|
-| `OPENAI_API_KEY` | ✅ Sí | API key de OpenAI |
-| `DATABASE_URL` | No (usa SQLite por defecto) | URL de PostgreSQL para producción |
-| `LANGCHAIN_API_KEY` | No | Activa trazas en LangSmith |
-| `HELICONE_API_KEY` | No | Activa proxy de costos Helicone |
-| `WANDB_API_KEY` | No | Activa métricas en W&B Weave |
-
-## Deploy en Railway
-
-1. Conecta este repositorio a Railway
-2. Agrega las variables de entorno en el panel de Railway
-3. Railway detecta automáticamente el `Procfile` y despliega
-
-## Endpoints principales
-
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| POST | `/api/v1/chat/` | Chat general con IA |
-| POST | `/api/v1/documents/upload` | Subir documento para RAG |
-| POST | `/api/v1/documents/query` | Consultar documentos (RAG) |
-| POST | `/api/v1/code/review` | Revisar código con IA |
-| POST | `/api/v1/code/repo/analyze` | Analizar repositorio GitHub |
-| GET  | `/api/v1/metrics/` | Métricas globales del sistema |
+3. **Arrancar el servidor:**
+   ```bash
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```

@@ -9,7 +9,7 @@ import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
         <ThemeProvider>
           <App />
@@ -19,11 +19,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         position="bottom-right"
         toastOptions={{
           style: {
-            background: '#0a1628',
-            color: '#c8deff',
-            border: '1px solid rgba(14,74,255,0.4)',
-            fontFamily: '"Rajdhani", sans-serif',
+            background: '#18181b',
+            color: '#fafafa',
+            border: '1px solid rgba(255,255,255,0.08)',
+            fontFamily: '"Plus Jakarta Sans", sans-serif',
             fontSize: '14px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.2)',
           },
         }}
       />
