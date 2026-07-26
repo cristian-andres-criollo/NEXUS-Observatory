@@ -24,7 +24,7 @@ def get_db():
 
 def create_tables():
     # Importar modelos para que SQLAlchemy los registre
-    from app.models import conversation, document, evaluation, user, system  # noqa
+    from app.models import conversation, document, evaluation, user, system, external_project  # noqa
     Base.metadata.create_all(bind=engine)
     print("[OK] Tablas creadas en la base de datos")
     

@@ -8,7 +8,7 @@ import os
 from app.core.config import settings
 from app.core.observability import setup_observability
 from app.db.database import create_tables
-from app.api.routes import chat, metrics, ab_testing, export, auth, webauthn, admin
+from app.api.routes import metrics, export, auth, webauthn, admin, ingest, proxy
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,16 +53,13 @@ app.add_middleware(
 )
 
 PREFIX = "/api/v1"
-app.include_router(auth,      prefix=PREFIX)
-app.include_router(admin.router, prefix=PREFIX)
-app.include_router(chat,      prefix=PREFIX)
-app.include_router(metrics,   prefix=PREFIX)
-app.include_router(ab_testing, prefix=PREFIX)
-app.include_router(export,    prefix=PREFIX)
-app.include_router(webauthn,  prefix=PREFIX)
-
-from finops_gateway import app as finops_app
-app.mount("/finops", finops_app)
+app.include_router(auth,           prefix=PREFIX)
+app.include_router(admin.router,   prefix=PREFIX)
+app.include_router(metrics,        prefix=PREFIX)
+app.include_router(export,         prefix=PREFIX)
+app.include_router(webauthn,       prefix=PREFIX)
+app.include_router(ingest.router,  prefix=PREFIX)
+app.include_router(proxy.router,   prefix="/proxy")
 
 @app.get("/api")
 def root():
@@ -71,7 +68,7 @@ def root():
         "version": "1.0.0",
         "status": "operational",
         "docs": "/docs",
-        "modules": ["chat_demo", "ab_testing", "token_gateway"],
+        "modules": ["dashboard", "finops", "token_gateway"],
         "observability_tools": ["LangSmith", "Helicone", "W&B Weave", "Arize Phoenix"],
     }
 

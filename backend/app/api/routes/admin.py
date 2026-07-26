@@ -15,9 +15,11 @@ from app.db.database import get_db
 from app.models.user import User
 from app.models.system import SystemSettings, PaymentMethod
 from app.models.conversation import Conversation
+from app.models.external_project import ExternalProject, generate_api_key, hash_api_key
 from app.api.routes.auth import get_current_admin_user, get_password_hash
 from app.core.ollama_controller import check_ollama_status, start_ollama_server, stop_ollama_server
 from fastapi import HTTPException, status
+from datetime import datetime, timezone
 
 router = APIRouter(tags=["Admin"])
 
@@ -286,3 +288,145 @@ def post_stop_ollama(current_admin: User = Depends(get_current_admin_user)):
     if not success:
         raise HTTPException(status_code=500, detail="No se pudo detener el proceso de Ollama")
     return {"message": "Servidor Ollama detenido"}
+
+
+# ── Gestión de Proyectos Externos (API Keys para clientes) ─────────────────────
+
+class ProjectCreate(BaseModel):
+    name: str
+    description: str | None = None
+    plan: str = "starter"
+    budget_cop: float = 50000.0
+
+
+class ProjectOut(BaseModel):
+    id: int
+    name: str
+    description: str | None
+    owner_email: str
+    api_key_prefix: str
+    plan: str
+    budget_cop: float
+    spent_cop: float
+    is_active: bool
+    created_at: str
+
+
+@router.post("/admin/projects")
+def create_project(
+    req: ProjectCreate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user),
+):
+    """
+    Crea un proyecto externo y emite su API key.
+    La key plana se devuelve UNA SOLA VEZ — Nexus solo guarda el hash.
+    """
+    raw_key = generate_api_key()
+    project = ExternalProject(
+        name=req.name,
+        description=req.description,
+        owner_email=current_admin.email,
+        api_key_hash=hash_api_key(raw_key),
+        api_key_prefix=raw_key[:12],
+        plan=req.plan,
+        budget_cop=req.budget_cop,
+        spent_cop=0.0,
+        budget_month=datetime.now(timezone.utc).strftime("%Y-%m"),
+        is_active=True,
+    )
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+    return {
+        "message": "Proyecto creado exitosamente",
+        "id": project.id,
+        "name": project.name,
+        "api_key": raw_key,          # ← solo se muestra aquí, una única vez
+        "api_key_prefix": project.api_key_prefix,
+        "plan": project.plan,
+        "budget_cop": project.budget_cop,
+    }
+
+
+@router.get("/admin/projects", response_model=List[ProjectOut])
+def list_projects(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user),
+):
+    """Lista todos los proyectos externos registrados."""
+    projects = db.query(ExternalProject).order_by(ExternalProject.created_at.desc()).all()
+    return [
+        ProjectOut(
+            id=p.id,
+            name=p.name,
+            description=p.description,
+            owner_email=p.owner_email,
+            api_key_prefix=p.api_key_prefix,
+            plan=p.plan,
+            budget_cop=p.budget_cop,
+            spent_cop=p.spent_cop,
+            is_active=p.is_active,
+            created_at=str(p.created_at),
+        )
+        for p in projects
+    ]
+
+
+@router.put("/admin/projects/{project_id}")
+def update_project(
+    project_id: int,
+    req: ProjectCreate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user),
+):
+    """Actualiza nombre, descripción, plan y presupuesto de un proyecto."""
+    project = db.query(ExternalProject).filter(ExternalProject.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    project.name = req.name
+    project.description = req.description
+    project.plan = req.plan
+    project.budget_cop = req.budget_cop
+    db.commit()
+    return {"message": "Proyecto actualizado", "id": project.id}
+
+
+@router.delete("/admin/projects/{project_id}")
+def deactivate_project(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user),
+):
+    """Desactiva el proyecto (kill switch permanente). No borra los datos históricos."""
+    project = db.query(ExternalProject).filter(ExternalProject.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    project.is_active = False
+    db.commit()
+    return {"message": f"Proyecto '{project.name}' desactivado"}
+
+
+@router.post("/admin/projects/{project_id}/reset-key")
+def reset_project_key(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user),
+):
+    """
+    Rota la API key del proyecto. La key anterior queda inválida de inmediato.
+    La nueva key se muestra UNA SOLA VEZ.
+    """
+    project = db.query(ExternalProject).filter(ExternalProject.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    raw_key = generate_api_key()
+    project.api_key_hash = hash_api_key(raw_key)
+    project.api_key_prefix = raw_key[:12]
+    db.commit()
+    return {
+        "message": "API key rotada exitosamente",
+        "api_key": raw_key,
+        "api_key_prefix": project.api_key_prefix,
+    }
+

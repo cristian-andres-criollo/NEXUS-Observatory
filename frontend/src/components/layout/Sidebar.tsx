@@ -1,16 +1,14 @@
 import React from 'react'
 import { NavLink, Link } from 'react-router-dom'
 import {
-  LayoutDashboard, MessageSquare, FileText, Code2, GitBranch,
-  Activity, Eye, Hexagon, ClipboardList, GitCommit, Sparkles, X, Settings
+  LayoutDashboard,
+  Activity, Eye, Hexagon, ClipboardList, GitCommit, X, Settings
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 const navItems = [
   { path: '/',          icon: LayoutDashboard, label: 'DASHBOARD',   sub: 'Métricas de uso', plans: ['community', 'team', 'enterprise'] },
-  { path: '/chat',      icon: MessageSquare,   label: 'ASISTENTE',   sub: 'Chat Demo', plans: ['community', 'team', 'enterprise'] },
   { path: '/finops',    icon: Activity,        label: 'FINOPS',      sub: 'Costos y Tokens', plans: ['team', 'enterprise'] },
-  { path: '/ab',        icon: Sparkles,        label: 'A/B TESTING', sub: 'Comparación LLM', plans: ['team', 'enterprise'] },
 ]
 
 const toolLinks = [
