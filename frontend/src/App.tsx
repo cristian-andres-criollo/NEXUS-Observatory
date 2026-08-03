@@ -1,40 +1,38 @@
 import React from 'react'
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { Toaster } from 'react-hot-toast'
 import { useAuth } from './context/AuthContext'
 import { Dashboard } from './pages/Dashboard'
 import { LoginModule } from './pages/LoginModule'
 import { SettingsModule } from './pages/SettingsModule'
 import { FinOpsModule } from './pages/FinOpsModule'
+import { Layout } from './components/Layout'
 
 export default function App() {
-  const { isAuthenticated, user } = useAuth()
+  const { isAuthenticated } = useAuth()
 
   if (!isAuthenticated) {
     return (
-      <Routes>
-        <Route path="*" element={<LoginModule />} />
-      </Routes>
+      <>
+        <Toaster position="top-right" />
+        <Routes>
+          <Route path="*" element={<LoginModule />} />
+        </Routes>
+      </>
     )
   }
 
-  const location = useLocation();
-  const path = location.pathname;
-
   return (
-    <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
-      <div style={{ display: path === '/' ? 'block' : 'none', height: '100%' }}>
-        <Dashboard />
-      </div>
-      <div style={{ display: path === '/finops' ? 'block' : 'none', height: '100%' }}>
-        <FinOpsModule />
-      </div>
-      <div style={{ display: path === '/settings' ? 'block' : 'none', height: '100%' }}>
-        <SettingsModule />
-      </div>
-      {/* Catch all redirect equivalent */}
-      {['/', '/finops', '/settings'].indexOf(path) === -1 && (
-        <Navigate to="/" replace />
-      )}
-    </div>
+    <>
+      <Toaster position="top-right" />
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/finops" element={<FinOpsModule />} />
+          <Route path="/settings" element={<SettingsModule />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </>
   )
 }

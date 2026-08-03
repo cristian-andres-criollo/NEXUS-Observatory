@@ -7,7 +7,7 @@ class WebAuthnCredential(Base):
     __tablename__ = "webauthn_credentials"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("nexus_users.id", ondelete="CASCADE"), nullable=False)
     credential_id = Column(String, unique=True, index=True, nullable=False) # b64url
     public_key = Column(Text, nullable=False) # CBOR en base64
     sign_count = Column(Integer, default=0)

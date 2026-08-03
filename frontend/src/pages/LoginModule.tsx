@@ -1,250 +1,272 @@
-import React, { useState, useEffect } from 'react'
-import { authAPI } from '../lib/api'
-import { useAuth } from '../context/AuthContext'
-import { Spinner } from '../components/ui/Spinner'
-import { Lock, User, TerminalSquare, Fingerprint, ShieldCheck, AlertCircle, Sparkles, Eye, EyeOff } from 'lucide-react'
-import toast from 'react-hot-toast'
-import {
-  isPasskeySupported,
-  loginWithDiscoverablePasskey,
-  loginWithPasskey,
-} from '../lib/webauthn'
+import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { Mail, Lock, Eye, EyeOff, Sparkles, LogIn, KeyRound } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { authAPI } from '../lib/api';
 
 export function LoginModule() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [passkeyLoading, setPasskeyLoading] = useState(false)
-  const [isRegistering, setIsRegistering] = useState(false)
-  const [passkeyAvailable, setPasskeyAvailable] = useState(false)
-  const { login } = useAuth()
-
-  // Verificar soporte de Passkey al montar
-  useEffect(() => {
-    isPasskeySupported().then(setPasskeyAvailable)
-  }, [])
-
-
-  // Disparar WebAuthn automáticamente cuando la pantalla carga
-  useEffect(() => {
-    if (passkeyAvailable && !isRegistering) {
-      handleAutoDiscoverablePasskey()
-    }
-  }, [passkeyAvailable, isRegistering])
-
-  async function handleAutoDiscoverablePasskey() {
-    setPasskeyLoading(true)
-    try {
-      const res = await loginWithDiscoverablePasskey()
-      login(res.access_token, { email: res.email, role: res.role, plan: res.plan || 'community', viewed_context_tabs: res.viewed_context_tabs })
-      toast.success('✅ Acceso biométrico autorizado', {
-        icon: '🔐',
-        style: { background: '#0a1628', color: '#00d4ff', border: '1px solid #00d4ff40' },
-      })
-    } catch (err: any) {
-      // Si falla o el usuario cancela, no bloqueamos la app, simplemente lo dejamos usar la contraseña.
-      console.log("Auto-login biométrico cancelado o fallido:", err)
-    } finally {
-      setPasskeyLoading(false)
-    }
-  }
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [requires2FA, setRequires2FA] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const { login } = useAuth();
+  
+  const searchParams = new URLSearchParams(window.location.search);
+  const tokenFromUrl = searchParams.get('token');
+  
+  const [recoveryPin, setRecoveryPin] = useState('');
+  const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'verify_pin' | 'reset_password'>(
+    tokenFromUrl ? 'reset_password' : 'login'
+  );
 
   async function handleAuth(e: React.FormEvent) {
-    e.preventDefault()
-    if (!email || !password) return toast.error('Ingresa correo y contraseña')
-    setLoading(true)
-    try {
-      // --- LÓGICA ORIGINAL COMENTADA ---
-      // if (isRegistering) {
-      //   await authAPI.register(email, password)
-      //   toast.success('Cuenta creada exitosamente. Iniciando sesión...')
-      //   const res = await authAPI.login(email, password)
-      //   login(res.data.access_token, { email: res.data.email, role: res.data.role, plan: res.data.plan || 'community', viewed_context_tabs: res.data.viewed_context_tabs })
-      // } else {
-      //   const res = await authAPI.login(email, password)
-      //   login(res.data.access_token, { email: res.data.email, role: res.data.role, plan: res.data.plan || 'community', viewed_context_tabs: res.data.viewed_context_tabs })
-      //   toast.success('Acceso autorizado')
-      // }
-
-      // BYPASS TEMPORAL: Siempre ingresar como Enterprise
-      login("mock_bypass_token", { 
-        email: "admin@nexus.com", 
-        role: "admin", 
-        plan: "enterprise", 
-        viewed_context_tabs: "{}" 
-      })
-      toast.success('Acceso Enterprise autorizado')
-
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || (isRegistering ? 'Error al registrarse' : 'Credenciales inválidas'))
-    } finally {
-      setLoading(false)
+    e.preventDefault();
+    if (view === 'reset_password') {
+      if (!password) return toast.error('Ingresa una nueva contraseña');
+      const tokenToUse = tokenFromUrl || recoveryPin;
+      setLoading(true);
+      try {
+        await authAPI.resetPassword(tokenToUse, password);
+        toast.success('Contraseña actualizada. Inicia sesión ahora.');
+        window.history.replaceState({}, document.title, window.location.pathname); // clear token
+        setView('login');
+      } catch (err: any) {
+        toast.error('PIN inválido o expirado');
+      } finally {
+        setLoading(false);
+      }
+      return;
     }
-  }
 
-  async function handlePasskeyLogin() {
-    if (!email) return toast.error('Ingresa tu correo primero')
-    setPasskeyLoading(true)
+    if (view === 'forgot_password') {
+      if (!email) return toast.error('Ingresa tu correo');
+      setLoading(true);
+      try {
+        await authAPI.forgotPassword(email);
+        toast.success('Te hemos enviado un PIN de 6 dígitos.');
+        setView('verify_pin');
+      } catch (err: any) {
+        toast.error('Error procesando la solicitud');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (view === 'verify_pin') {
+      if (!recoveryPin || recoveryPin.length !== 6) return toast.error('Ingresa el PIN de 6 dígitos');
+      setView('reset_password');
+      return;
+    }
+
+    if (requires2FA) {
+      if (!twoFactorCode) return toast.error('Ingresa el código de 6 dígitos');
+      setLoading(true);
+      try {
+        const res = await authAPI.verify2FA(email, twoFactorCode);
+        login(res.data.access_token, res.data);
+        toast.success('Autenticación exitosa');
+      } catch (err: any) {
+        toast.error(err.response?.data?.detail || 'Código incorrecto');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (!email || !password) return toast.error('Ingresa correo y contraseña');
+    setLoading(true);
     try {
-      const res = await loginWithPasskey(email)
-      login(res.access_token, { email: res.email, role: res.role })
-      toast.success('✅ Acceso biométrico autorizado', {
-        icon: '🔐',
-        style: { background: '#0a1628', color: '#00d4ff', border: '1px solid #00d4ff40' },
-      })
+      if (view === 'register') {
+        await authAPI.register(email, password);
+        toast.success('Cuenta creada exitosamente. Iniciando sesión...');
+      }
+      const res = await authAPI.login(email, password);
+      
+      if (res.data.requires_2fa) {
+        setRequires2FA(true);
+        toast.success('Se ha enviado un código de seguridad a tu correo');
+      } else {
+        login(res.data.access_token, res.data);
+        toast.success(`¡Bienvenido de vuelta!`);
+      }
     } catch (err: any) {
-      const msg = err?.response?.data?.detail || err?.message || 'Error en autenticación biométrica'
-      toast.error(msg)
+      toast.error(err.response?.data?.detail || 'Ocurrió un error al intentar acceder.');
     } finally {
-      setPasskeyLoading(false)
+      setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-[#020408] flex flex-col items-center justify-center p-4">
-      {/* Background glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-nexus-blue/20 blur-[120px] rounded-full pointer-events-none" />
-      {passkeyAvailable && (
-        <div className="absolute top-1/3 left-1/3 w-64 h-64 bg-nexus-cyan/5 blur-[100px] rounded-full pointer-events-none" />
-      )}
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
+      {/* Background decorations */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-blue-100 rounded-full blur-3xl opacity-50 -translate-y-1/2 translate-x-1/2"></div>
+      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-indigo-100 rounded-full blur-3xl opacity-50 translate-y-1/2 -translate-x-1/4"></div>
 
-      <div className="w-full max-w-md nexus-panel p-8 flex flex-col gap-8 relative z-10 animate-fade-in-up">
+      <div className="w-full max-w-[420px] bg-white rounded-3xl p-8 sm:p-10 shadow-xl border border-slate-100 relative z-10 animate-fade-in-up">
+        
         {/* Header */}
-        <div className="flex flex-col items-center text-center gap-4">
-          <div className="w-56 h-auto flex items-center justify-center mb-2">
-            <img 
-              src="/img/logo web.png" 
-              alt="Nexus Logo" 
-              className="w-full h-auto object-contain drop-shadow-[0_0_15px_rgba(0,212,255,0.6)]" 
-            />
+        <div className="flex flex-col items-center text-center gap-4 mb-8">
+          <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-2 shadow-sm">
+            <Sparkles className="w-8 h-8" />
           </div>
-          <p className="font-mono text-[10px] text-nexus-dim tracking-widest uppercase">
-            {isRegistering ? 'Creación de Nueva Identidad' : 'Autorización Requerida'}
-          </p>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">
+              {requires2FA ? 'Verificación 2FA' : view === 'register' ? 'Crear una cuenta' : view === 'forgot_password' ? 'Recuperar contraseña' : view === 'verify_pin' ? 'Ingresar PIN' : view === 'reset_password' ? 'Nueva contraseña' : 'Iniciar Sesión'}
+            </h1>
+            <p className="text-slate-500 text-sm mt-1">
+              {requires2FA ? 'Revisa tu bandeja de entrada.' : view === 'forgot_password' ? 'Te enviaremos un PIN de 6 dígitos.' : view === 'verify_pin' ? 'Ingresa el PIN que recibiste por correo.' : view === 'reset_password' ? 'Ingresa tu nueva clave de acceso.' : 'Accede a tu asistente inteligente.'}
+            </p>
+          </div>
         </div>
 
-        {/* ── PASSKEY BUTTON (Siempre visible si se soporta, para disparar el prompt general) ── */}
-        {passkeyAvailable && !isRegistering && (
-          <div className="flex flex-col gap-2">
-            <button
-              id="passkey-login-btn"
-              type="button"
-              disabled={passkeyLoading}
-              onClick={handleAutoDiscoverablePasskey}
-              className="relative overflow-hidden group w-full py-3.5 rounded-xl border border-nexus-cyan/40 bg-gradient-to-r from-nexus-cyan/10 to-nexus-blue/10 hover:from-nexus-cyan/20 hover:to-nexus-blue/20 transition-all duration-300 flex items-center justify-center gap-3 font-mono text-[11px] tracking-widest text-nexus-cyan uppercase shadow-[0_0_20px_rgba(0,212,255,0.1)] hover:shadow-[0_0_30px_rgba(0,212,255,0.25)]"
-            >
-              {/* Shimmer effect */}
-              <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-nexus-cyan/10 to-transparent" />
-              {passkeyLoading ? (
-                <Spinner size={16} />
-              ) : (
-                <>
-                  <Fingerprint size={18} className="text-nexus-cyan animate-pulse" />
-                  Iniciar sesión con Passkey
-                </>
-              )}
-            </button>
-
-            {/* Divider */}
-            <div className="flex items-center gap-3 mt-1">
-              <div className="flex-1 h-px bg-white/5" />
-              <span className="font-mono text-[9px] text-nexus-dim uppercase tracking-widest">o usa contraseña</span>
-              <div className="flex-1 h-px bg-white/5" />
-            </div>
-          </div>
-        )}
-
-
-        {/* ── Formulario email + contraseña ── */}
+        {/* Form */}
         <form onSubmit={handleAuth} className="flex flex-col gap-5">
-          <div className="flex flex-col gap-2">
-            <label className="font-mono text-[10px] text-nexus-dim uppercase tracking-widest flex items-center gap-2">
-              <User size={12} className="text-nexus-cyan" /> Usuario (Email)
-            </label>
-            <input
-              id="email-input"
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              className="nexus-input py-3"
-              placeholder="admin@nexus.com"
-              required
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <label className="font-mono text-[10px] text-nexus-dim uppercase tracking-widest flex items-center gap-2">
-              <Lock size={12} className="text-nexus-blue" /> Contraseña
-            </label>
-            <div className="relative">
-              <input
-                id="password-input"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                className="nexus-input py-3 w-full pr-10"
-                placeholder="••••••••"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-nexus-dim hover:text-white transition-colors"
-                tabIndex={-1}
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
+          {requires2FA ? (
+            <div>
+              <label className="text-sm font-semibold text-slate-700 block mb-2">Código de 6 dígitos</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                  <KeyRound className="w-5 h-5" />
+                </span>
+                <input
+                  type="text"
+                  value={twoFactorCode}
+                  onChange={e => setTwoFactorCode(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all bg-slate-50 focus:bg-white text-slate-900 tracking-[0.5em] text-center font-bold"
+                  placeholder="000000"
+                  maxLength={6}
+                  required
+                />
+              </div>
             </div>
-          </div>
+          ) : (
+            <>
+              {(view === 'login' || view === 'register' || view === 'forgot_password') && (
+                <div>
+                  <label className="text-sm font-semibold text-slate-700 block mb-2">Correo Electrónico</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                      <Mail className="w-5 h-5" />
+                    </span>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all bg-slate-50 focus:bg-white text-slate-900"
+                      placeholder="ejemplo@correo.com"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
 
-          {/* ── Info NEXUS Community (solo en registro) ── */}
-          {isRegistering && (
-            <div className="p-4 bg-nexus-cyan/5 border border-nexus-cyan/20 rounded-xl space-y-2">
-              <p className="font-display text-[11px] text-nexus-cyan tracking-widest uppercase flex items-center gap-2">
-                <Sparkles size={14} /> NEXUS Community — Incluido al registrarse
-              </p>
-              <ul className="text-[10px] text-nexus-dim space-y-1 font-mono">
-                <li className="flex items-center gap-2"><ShieldCheck size={10} className="text-nexus-success" /> Chat con IA — <span className="text-white">Ilimitado</span></li>
-                <li className="flex items-center gap-2"><AlertCircle size={10} className="text-nexus-warn" /> Análisis de documentos — <span className="text-white">10/mes</span></li>
-                <li className="flex items-center gap-2"><AlertCircle size={10} className="text-nexus-warn" /> Repositorios y Code Review — <span className="text-white">5/mes</span></li>
-              </ul>
-              <p className="text-[9px] text-nexus-dim/60 italic">El administrador puede ascenderte a Team o Enterprise.</p>
-            </div>
+              {view === 'verify_pin' && (
+                <div>
+                  <label className="text-sm font-semibold text-slate-700 block mb-2">PIN de 6 dígitos</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                      <KeyRound className="w-5 h-5" />
+                    </span>
+                    <input
+                      type="text"
+                      value={recoveryPin}
+                      onChange={e => setRecoveryPin(e.target.value)}
+                      className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all bg-slate-50 focus:bg-white text-slate-900 tracking-[0.5em] text-center font-bold"
+                      placeholder="000000"
+                      maxLength={6}
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
+
+              {(view === 'login' || view === 'register' || view === 'reset_password') && (
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-sm font-semibold text-slate-700 block">
+                      {view === 'reset_password' ? 'Nueva Contraseña' : 'Contraseña'}
+                    </label>
+                    {view === 'login' && (
+                      <button type="button" onClick={() => setView('forgot_password')} className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                        ¿Olvidaste tu contraseña?
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                      <Lock className="w-5 h-5" />
+                    </span>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      className="w-full pl-11 pr-11 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all bg-slate-50 focus:bg-white text-slate-900"
+                      placeholder="••••••••"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           <button
-            id="login-submit-btn"
             type="submit"
             disabled={loading}
-            className="nexus-btn-primary py-3 mt-4 flex items-center justify-center gap-2"
+            className="w-full py-3.5 mt-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-all transform hover:-translate-y-0.5 shadow-md hover:shadow-lg disabled:opacity-70 disabled:hover:translate-y-0 flex items-center justify-center gap-2"
           >
-            {loading ? <Spinner size={16} /> : (isRegistering ? 'CREAR CUENTA COMMUNITY' : 'INICIAR SESIÓN')}
+            {loading ? (
+              <span className="animate-pulse">Procesando...</span>
+            ) : (
+              <>
+                {requires2FA ? 'Verificar Código' : view === 'register' ? 'Registrarme' : view === 'forgot_password' ? 'Enviar PIN' : view === 'verify_pin' ? 'Continuar' : view === 'reset_password' ? 'Cambiar Contraseña' : 'Entrar'}
+                <LogIn className="w-5 h-5" />
+              </>
+            )}
           </button>
         </form>
 
-        {/* ── Footer ── */}
-        <div className="border-t border-white/5 pt-4 text-center flex flex-col gap-3">
-          {passkeyAvailable && (
-            <div className="flex items-center justify-center gap-1.5">
-              <Fingerprint size={10} className="text-nexus-cyan/60" />
-              <p className="font-mono text-[9px] text-nexus-cyan/60 tracking-widest uppercase">
-                Passkeys / Biométrico disponible
+        {/* Footer */}
+        <div className="mt-8 pt-6 border-t border-slate-100 text-center flex flex-col gap-2">
+          {requires2FA ? (
+            <button type="button" onClick={() => setRequires2FA(false)} className="text-sm text-slate-500 hover:text-slate-700">
+              Cancelar y volver al login
+            </button>
+          ) : (view === 'forgot_password' || view === 'verify_pin' || view === 'reset_password') ? (
+            <button type="button" onClick={() => {
+                setView('login');
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }} className="text-sm text-slate-500 hover:text-slate-700">
+              Volver al inicio de sesión
+            </button>
+          ) : (
+            <>
+              <p className="text-sm text-slate-500">
+                {view === 'register' ? '¿Ya tienes una cuenta?' : '¿Aún no tienes cuenta?'}
               </p>
-            </div>
+              <button
+                type="button"
+                onClick={() => setView(view === 'register' ? 'login' : 'register')}
+                className="text-blue-600 font-semibold hover:text-blue-700 transition-colors"
+              >
+                {view === 'register' ? 'Inicia sesión aquí' : 'Crea una cuenta gratuita'}
+              </button>
+            </>
           )}
-          <p className="font-mono text-[9px] text-nexus-dim uppercase tracking-widest">
-            Sistema de Observabilidad LLM — Acceso Restringido
-          </p>
-          <button
-            type="button"
-            onClick={() => setIsRegistering(!isRegistering)}
-            className="font-mono text-[10px] text-nexus-cyan hover:text-nexus-glow transition-colors uppercase tracking-widest"
-          >
-            {isRegistering ? '¿Ya tienes una identidad? Inicia sesión' : '¿No tienes cuenta? Regístrate aquí'}
-          </button>
         </div>
       </div>
     </div>
-  )
+  );
 }

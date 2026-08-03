@@ -1,89 +1,25 @@
+version: '3.8'
+
 services:
-  nexus-monolith:
-    build:
-      context: .
+  backend:
+    build: 
+      context: ./backend
       dockerfile: Dockerfile
-    container_name: nexus-monolith
+    container_name: nexus_backend
     ports:
       - "8000:8000"
-    environment:
-      - DATABASE_URL=sqlite:///./nexus.db
-      - FINOPS_DATABASE_URL=postgresql://nexus_admin:nexus_secure_password@postgres:5432/nexus_db
-      - LITELLM_URL=http://litellm:4000
-      - GROQ_BASE_URL=http://litellm:4000/v1
-      - HELICONE_API_KEY=
-    depends_on:
-      - postgres
-      - litellm
-      - langfuse-server
+    env_file:
+      - ./backend/.env.docker
+    # Use host.docker.internal to reach the host's existing postgres container
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
-  postgres:
-    image: postgres:15-alpine
-    container_name: nexus-postgres
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nexus_frontend
     ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=nexus_admin
-      - POSTGRES_PASSWORD=nexus_secure_password
-      - POSTGRES_DB=nexus_db
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./infra/schema.sql:/docker-entrypoint-initdb.d/init.sql
+      - "3000:80"
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nexus_admin -d nexus_db"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  langfuse-server:
-    image: langfuse/langfuse:2
-    container_name: nexus-langfuse
-    depends_on:
-      postgres:
-        condition: service_healthy
-    ports:
-      - "3030:3000"
-    environment:
-      - DATABASE_URL=postgresql://nexus_admin:nexus_secure_password@postgres:5432/langfuse_db
-      - NEXTAUTH_URL=http://localhost:3030
-      - NEXTAUTH_SECRET=my_super_secret_nexus_key_123
-      - SALT=my_super_salt_456
-      - LANGFUSE_CSP_FRAME_ANCESTORS=http://localhost:5173
-    restart: unless-stopped
-
-  litellm:
-    image: ghcr.io/berriai/litellm:main-latest
-    container_name: nexus-litellm
-    ports:
-      - "4000:4000"
-    volumes:
-      - ./infra/litellm-config.yaml:/app/config.yaml
-    command: [ "--config", "/app/config.yaml" ]
-    environment:
-      - DATABASE_URL=postgresql://nexus_admin:nexus_secure_password@postgres:5432/litellm_db
-      - LANGFUSE_PUBLIC_KEY=pk-lf-f164a72a-5830-44b8-8da2-608637eb9a9a
-      - LANGFUSE_SECRET_KEY=sk-lf-2445ffa3-e121-4618-8ec2-2ad8668882af
-      - LANGFUSE_HOST=http://langfuse-server:3000
-      - GROQ_API_KEY=${GROQ_API_KEY:-tu_groq_key_aqui}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-
-  iframe-proxy:
-    image: nginx:alpine
-    container_name: nexus-iframe-proxy
-    ports:
-      - "3031:3031"
-      - "4001:4001"
-    volumes:
-      - ./infra/nginx-proxy.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      - langfuse-server
-      - litellm
-    restart: unless-stopped
-
-volumes:
-  postgres_data:

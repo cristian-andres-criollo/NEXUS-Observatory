@@ -224,6 +224,7 @@ export interface RecentConversation {
   latency_ms: number
   hallucination_score?: number
   created_at: string
+  assistant_message?: string
 }
 
 export interface TopUser {
@@ -434,9 +435,12 @@ export const repoChatAPI = {
 }
 
 export const metricsAPI = {
-  global: (personal: boolean = false) => api.get<GlobalMetrics>(`/metrics/?personal=${personal}`),
-  latency: (personal: boolean = false, limit?: number) => api.get<LatencyPoint[]>(`/metrics/latency?personal=${personal}${limit ? `&limit=${limit}` : ''}`),
-  cost: (personal: boolean = false, limit?: number) => api.get<CostPoint[]>(`/metrics/cost?personal=${personal}${limit ? `&limit=${limit}` : ''}`),
+  global: (personal: boolean = false, project_id?: number) => 
+    api.get<GlobalMetrics>(`/metrics/?personal=${personal}${project_id ? `&project_id=${project_id}` : ''}`),
+  latency: (personal: boolean = false, limit?: number, project_id?: number) => 
+    api.get<LatencyPoint[]>(`/metrics/latency?personal=${personal}${limit ? `&limit=${limit}` : ''}${project_id ? `&project_id=${project_id}` : ''}`),
+  cost: (personal: boolean = false, limit?: number, project_id?: number) => 
+    api.get<CostPoint[]>(`/metrics/cost?personal=${personal}${limit ? `&limit=${limit}` : ''}${project_id ? `&project_id=${project_id}` : ''}`),
 }
 
 export const authAPI = {
@@ -455,12 +459,24 @@ export const authAPI = {
   updateTheme: (theme_color: string) =>
     api.put('/auth/me/theme', { theme_color }),
   updateProfile: (profileData: {
+    email?: string,
     full_name?: string,
     profile_picture?: string,
     custom_ai_instructions?: string,
     language?: string,
-    hardware_specs?: string
+    hardware_specs?: string,
+    currency?: string,
+    budget_alert_threshold?: number,
+    email_alerts?: boolean
   }) => api.put('/auth/me/profile', profileData),
+  verify2FA: (email: string, code: string) =>
+    api.post('/auth/verify-2fa', { email, code }),
+  forgotPassword: (email: string) =>
+    api.post('/auth/forgot-password', { email }),
+  resetPassword: (token: string, new_password: string) =>
+    api.post('/auth/reset-password', { token, new_password }),
+  toggle2FA: (enabled: boolean) =>
+    api.put('/auth/me/2fa/toggle', { enabled }),
 }
 
 export const webauthnAPI = {
@@ -468,10 +484,27 @@ export const webauthnAPI = {
   deletePasskey: (id: string) => api.delete<{message: string}>(`/auth/webauthn/delete/${id}`)
 }
 
+export interface ProjectOut {
+  id: number;
+  name: string;
+  description: string | null;
+  owner_email: string;
+  api_key_prefix: string;
+  plan: string;
+  budget_cop: number;
+  spent_cop: number;
+  is_active: boolean;
+  functions: string;
+  llm_provider: string;
+  llm_api_key: string | null;
+  created_at: string;
+}
+
 export interface AdminDashboardData {
   budget_cop: number;
   total_tokens_purchased: number;
   trm_usd_cop: number;
+  trm_rates: Record<string, number>;
   groq_cost_per_million: number;
   anthropic_cost_per_million: number;
   openai_cost_per_million: number;
@@ -483,6 +516,7 @@ export interface AdminDashboardData {
   ollama_model: string;
   payment_methods: any[];
   users: any[];
+  projects: ProjectOut[];
 }
 
 export const adminAPI = {
@@ -511,4 +545,25 @@ export const adminAPI = {
     api.post<{message: string}>('/admin/ollama/start'),
   stopOllama: () =>
     api.post<{message: string}>('/admin/ollama/stop'),
+  
+  // Agentes de IA Controlados (ExternalProjects)
+  listProjects: () => api.get<ProjectOut[]>('/admin/projects'),
+  createProject: (name: string, description: string, plan: string, budget_cop: number, functions: string, llm_provider: string = 'groq', llm_api_key: string = '') =>
+    api.post('/admin/projects', { name, description, plan, budget_cop, functions, owner_email: "dummy@nexus.com", llm_provider, llm_api_key }),
+  updateProject: (project_id: number, name: string, description: string, plan: string, budget_cop: number, functions: string, llm_provider: string = 'groq', llm_api_key: string = '') =>
+    api.put(`/admin/projects/${project_id}`, { name, description, plan, budget_cop, functions, owner_email: "dummy@nexus.com", llm_provider, llm_api_key }),
+  deactivateProject: (project_id: number) =>
+    api.delete(`/admin/projects/${project_id}`),
+  deleteProject: (project_id: number) =>
+    api.delete(`/admin/projects/${project_id}/hard`),
+  resetProjectKey: (project_id: number) =>
+    api.post<{message: string, api_key: string, api_key_prefix: string}>(`/admin/projects/${project_id}/reset-key`),
+  listProjectUsers: (project_id: number) =>
+    api.get<any[]>(`/admin/projects/${project_id}/users`),
+  createProjectUserLimit: (project_id: number, user_identifier: string, budget_cop: number, is_active: boolean = true) =>
+    api.post<any>(`/admin/projects/${project_id}/users`, { user_identifier, budget_cop, is_active }),
+  updateProjectUserLimit: (project_id: number, limit_id: number, budget_cop?: number, is_active?: boolean) =>
+    api.put<any>(`/admin/projects/${project_id}/users/${limit_id}`, { budget_cop, is_active }),
+  autoDistributeProjectUsers: (project_id: number) =>
+    api.post<{message: string, budget_per_user: number}>(`/admin/projects/${project_id}/users/autodistribute`),
 }

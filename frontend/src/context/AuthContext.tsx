@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react'
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
 
 interface UserData {
   email: string
@@ -7,10 +7,15 @@ interface UserData {
   viewed_context_tabs?: string
   theme_color?: string
   full_name?: string
+  name?: string
   profile_picture?: string
   custom_ai_instructions?: string
   language?: string
+  currency?: string
+  budget_alert_threshold?: number
+  email_alerts?: boolean
   hardware_specs?: string
+  two_factor_enabled?: boolean
 }
 
 interface AuthContextType {
@@ -80,6 +85,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null)
     setUser(null)
   }, [])
+
+  // Apply theme class to document
+  useEffect(() => {
+    if (user?.theme_color === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [user?.theme_color]);
 
   return (
     <AuthContext.Provider value={{ user, token, login, logout, updateUser, isAuthenticated: !!token }}>

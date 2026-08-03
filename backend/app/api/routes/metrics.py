@@ -10,22 +10,22 @@ from app.models.user import User
 router = APIRouter(prefix="/metrics", tags=["Metrics"])
 
 @router.get("/", response_model=GlobalMetrics)
-def global_metrics(personal: bool = False, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def global_metrics(personal: bool = False, project_id: int = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
         personal = True
     user_email = current_user.email if personal else None
-    return get_global_metrics(db, user_email)
+    return get_global_metrics(db, user_email, project_id)
 
 @router.get("/latency")
-def latency_history(personal: bool = False, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def latency_history(personal: bool = False, project_id: int = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
         personal = True
     user_email = current_user.email if personal else None
-    return get_latency_history(db, 25, user_email)
+    return get_latency_history(db, 25, user_email, project_id)
 
 @router.get("/cost")
-def cost_history(personal: bool = False, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def cost_history(personal: bool = False, project_id: int = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
         personal = True
     user_email = current_user.email if personal else None
-    return get_cost_history(db, 25, user_email)
+    return get_cost_history(db, 25, user_email, project_id)

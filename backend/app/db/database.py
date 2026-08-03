@@ -24,7 +24,31 @@ def get_db():
 
 def create_tables():
     # Importar modelos para que SQLAlchemy los registre
-    from app.models import conversation, document, evaluation, user, system, external_project  # noqa
+    from app.models import conversation, document, document_chunk, evaluation, user, system, external_project, billing, agent_user  # noqa
+    
+    from sqlalchemy import text
+    if "postgresql" in engine.url.drivername:
+        with engine.connect() as conn:
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            # Migraciones automáticas (BYOK)
+            try:
+                conn.execute(text("ALTER TABLE external_projects ADD COLUMN llm_provider VARCHAR(50) DEFAULT 'groq'"))
+            except Exception:
+                pass
+            try:
+                conn.execute(text("ALTER TABLE external_projects ADD COLUMN llm_api_key VARCHAR(255)"))
+            except Exception:
+                pass
+            try:
+                conn.execute(text("ALTER TABLE agent_user_limits ALTER COLUMN spent_cop TYPE DOUBLE PRECISION"))
+            except Exception as e:
+                print("Error altering agent_user_limits spent_cop:", e)
+            try:
+                conn.execute(text("ALTER TABLE agent_user_limits ALTER COLUMN budget_cop TYPE DOUBLE PRECISION"))
+            except Exception as e:
+                print("Error altering agent_user_limits budget_cop:", e)
+            conn.commit()
+            
     Base.metadata.create_all(bind=engine)
     print("[OK] Tablas creadas en la base de datos")
     
@@ -61,37 +85,16 @@ def create_tables():
             for c in cards:
                 db.add(c)
 
-        # 1. Crear admin si no existe (Enterprise)
-        admin_email = "tovarcristian431@gmail.com"
+        # 1. Crear admin si no existe
+        admin_email = "prueba@gmail.com"
         admin = db.query(User).filter(User.email == admin_email).first()
         if not admin:
             db.add(User(
                 email=admin_email,
-                hashed_password=get_password_hash("Criollo12345*"),
+                hashed_password=get_password_hash("12345678"),
                 role="admin",
-                plan="enterprise"
-            ))
-            
-        # 2. Crear usuario de prueba Team si no existe
-        team_email = "prueba1@nexus.com"
-        team_user = db.query(User).filter(User.email == team_email).first()
-        if not team_user:
-            db.add(User(
-                email=team_email,
-                hashed_password=get_password_hash("prueba123"),
-                role="user",
-                plan="team"
-            ))
-
-        # 3. Crear usuario de prueba Community si no existe
-        community_email = "criollo@gmail.com"
-        community_user = db.query(User).filter(User.email == community_email).first()
-        if not community_user:
-            db.add(User(
-                email=community_email,
-                hashed_password=get_password_hash("prueba123"),
-                role="user",
-                plan="community"
+                plan="enterprise",
+                full_name="prueba administrador"
             ))
         
         db.commit()

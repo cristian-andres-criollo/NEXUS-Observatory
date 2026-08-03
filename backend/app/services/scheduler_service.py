@@ -32,10 +32,15 @@ async def fetch_trm_and_prices():
                 trm_response = await client.get("https://open.er-api.com/v6/latest/USD")
                 if trm_response.status_code == 200:
                     data = trm_response.json()
-                    cop_rate = data.get("rates", {}).get("COP")
-                    if cop_rate:
-                        settings.trm_usd_cop = float(cop_rate)
-                        logger.info(f"TRM actualizada exitosamente: 1 USD = {cop_rate} COP")
+                    rates = data.get("rates", {})
+                    
+                    if "COP" in rates: settings.trm_usd_cop = float(rates["COP"])
+                    if "MXN" in rates: settings.trm_usd_mxn = float(rates["MXN"])
+                    if "ARS" in rates: settings.trm_usd_ars = float(rates["ARS"])
+                    if "CLP" in rates: settings.trm_usd_clp = float(rates["CLP"])
+                    if "PEN" in rates: settings.trm_usd_pen = float(rates["PEN"])
+                        
+                    logger.info(f"TRMs actualizadas exitosamente (ej. 1 USD = {rates.get('COP')} COP)")
             except Exception as e:
                 logger.error(f"Error consultando TRM: {e}")
 

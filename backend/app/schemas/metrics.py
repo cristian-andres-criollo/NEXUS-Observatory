@@ -12,6 +12,7 @@ class RecentConversation(BaseModel):
     latency_ms: int
     hallucination_score: Optional[float]
     created_at: Optional[str]
+    assistant_message: Optional[str] = ""
 
 
 class TopUser(BaseModel):

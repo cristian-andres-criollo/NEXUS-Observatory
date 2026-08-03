@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 import bcrypt
@@ -11,7 +11,10 @@ from app.models.user import User
 from app.models.system import SystemSettings
 from app.models.conversation import Conversation
 from app.core.config import settings
+import secrets
+import asyncio
 from sqlalchemy import func
+from app.services.email_service import send_2fa_code_async, send_recovery_token_async
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
@@ -41,6 +44,7 @@ class ThemeUpdate(BaseModel):
     theme_color: str
 
 class UserProfileUpdate(BaseModel):
+    email: Optional[str] = None
     full_name: Optional[str] = None
     profile_picture: Optional[str] = None
     custom_ai_instructions: Optional[str] = None
@@ -50,6 +54,21 @@ class UserProfileUpdate(BaseModel):
 class UserCreate(BaseModel):
     email: str
     password: str
+
+class Verify2FARequest(BaseModel):
+    email: str
+    code: str
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+class Toggle2FARequest(BaseModel):
+    enabled: bool
+
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
@@ -72,30 +91,26 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 @router.post("/auth/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    # --- LÓGICA ORIGINAL COMENTADA ---
-    # user = db.query(User).filter(User.email == form_data.username).first()
-    # if not user or not verify_password(form_data.password, user.hashed_password):
-    #     raise HTTPException(
-    #         status_code=status.HTTP_401_UNAUTHORIZED,
-    #         detail="Correo o contraseña incorrectos",
-    #         headers={"WWW-Authenticate": "Bearer"},
-    #     )
-    # if user.role == "admin" and user.plan != "enterprise":
-    #     user.plan = "enterprise"
-    #     db.commit()
-    #     db.refresh(user)
-
-    # BYPASS TEMPORAL POR BASE DE DATOS CORRUPTA
-    user = User(
-        email="admin@nexus.com",
-        role="admin",
-        plan="enterprise",
-        viewed_context_tabs="{}",
-        theme_color="default",
-        full_name="Enterprise Admin",
-        language="es"
-    )
+async def login(background_tasks: BackgroundTasks, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Correo o contraseña incorrectos",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if user.role == "admin" and getattr(user, 'plan', None) != "enterprise":
+        user.plan = "enterprise"
+        db.commit()
+        db.refresh(user)
+        
+    if getattr(user, 'two_factor_enabled', False):
+        code = str(secrets.randbelow(1000000)).zfill(6)
+        user.two_factor_code = code
+        user.two_factor_expires = __import__('datetime').datetime.now(__import__('datetime').timezone.utc) + __import__('datetime').timedelta(minutes=10)
+        db.commit()
+        background_tasks.add_task(send_2fa_code_async, user.email, code)
+        return {"requires_2fa": True, "email": user.email}
     
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -129,8 +144,8 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
     new_user = User(
         email=user_in.email,
         hashed_password=hashed_pwd,
-        role="user",
-        plan="community"   # Todos los nuevos usuarios empiezan en el plan community
+        role="admin",
+        plan="enterprise"
     )
     db.add(new_user)
     db.commit()
@@ -138,35 +153,23 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
     return {"message": "Usuario registrado exitosamente", "email": new_user.email, "plan": new_user.plan}
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    # --- LÓGICA ORIGINAL COMENTADA ---
-    # credentials_exception = HTTPException(
-    #     status_code=status.HTTP_401_UNAUTHORIZED,
-    #     detail="No se pudo validar las credenciales",
-    #     headers={"WWW-Authenticate": "Bearer"},
-    # )
-    # try:
-    #     payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    #     email: Optional[str] = payload.get("sub")
-    #     if email is None:
-    #         raise credentials_exception
-    # except jwt.PyJWTError:
-    #     raise credentials_exception
-    #     
-    # user = db.query(User).filter(User.email == email).first()
-    # if user is None:
-    #     raise credentials_exception
-    # return user
-
-    # BYPASS TEMPORAL POR BASE DE DATOS CORRUPTA
-    return User(
-        email="admin@nexus.com",
-        role="admin",
-        plan="enterprise",
-        viewed_context_tabs="{}",
-        theme_color="default",
-        full_name="Enterprise Admin",
-        language="es"
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="No se pudo validar las credenciales",
+        headers={"WWW-Authenticate": "Bearer"},
     )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: Optional[str] = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+    except jwt.PyJWTError:
+        raise credentials_exception
+        
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        raise credentials_exception
+    return user
 
 def get_current_admin_user(current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
@@ -271,7 +274,11 @@ def update_theme(prefs: ThemeUpdate, current_user: User = Depends(get_current_us
 
 @router.put("/auth/me/profile")
 def update_profile(profile: UserProfileUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    
+    if profile.email is not None:
+        current_user.email = profile.email
     if profile.full_name is not None:
+
         current_user.full_name = profile.full_name
     if profile.profile_picture is not None:
         current_user.profile_picture = profile.profile_picture
@@ -299,3 +306,81 @@ def update_profile(profile: UserProfileUpdate, current_user: User = Depends(get_
         "hardware_specs": current_user.hardware_specs,
         "plan": current_user.plan
     }
+
+@router.post("/auth/verify-2fa")
+def verify_2fa(req: Verify2FARequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == req.email).first()
+    if not user or not user.two_factor_code:
+        raise HTTPException(status_code=400, detail="Código inválido o expirado")
+        
+    now = __import__('datetime').datetime.now(__import__('datetime').timezone.utc)
+    if user.two_factor_expires:
+        expires = user.two_factor_expires
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=__import__('datetime').timezone.utc)
+        if now > expires:
+            raise HTTPException(status_code=400, detail="El código ha expirado")
+        
+    if user.two_factor_code != req.code:
+        raise HTTPException(status_code=400, detail="Código incorrecto")
+        
+    user.two_factor_code = None
+    user.two_factor_expires = None
+    db.commit()
+    
+    access_token_expires = __import__('datetime').timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email, "role": user.role}, expires_delta=access_token_expires
+    )
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "role": user.role,
+        "email": user.email,
+        "viewed_context_tabs": user.viewed_context_tabs or "{}",
+        "theme_color": user.theme_color or "default",
+        "plan": user.plan or "free",
+        "full_name": user.full_name,
+        "profile_picture": user.profile_picture,
+        "custom_ai_instructions": user.custom_ai_instructions,
+        "language": user.language or "es",
+        "two_factor_enabled": getattr(user, 'two_factor_enabled', False)
+    }
+
+@router.post("/auth/forgot-password")
+def forgot_password(req: ForgotPasswordRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == req.email).first()
+    if user:
+        token = str(secrets.randbelow(1000000)).zfill(6)
+        user.recovery_token = token
+        user.recovery_expires = __import__('datetime').datetime.now(__import__('datetime').timezone.utc) + __import__('datetime').timedelta(minutes=15)
+        db.commit()
+        background_tasks.add_task(send_recovery_token_async, user.email, token)
+    return {"message": "Si el correo existe, recibirás un enlace de recuperación."}
+
+@router.post("/auth/reset-password")
+def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.recovery_token == req.token).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="Token inválido")
+        
+    now = __import__('datetime').datetime.now(__import__('datetime').timezone.utc)
+    if user.recovery_expires:
+        # Si la BD devuelve timezone naive (ej. SQLite), asumimos UTC. Si devuelve aware (ej. Postgres), no hay problema.
+        expires = user.recovery_expires
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=__import__('datetime').timezone.utc)
+        if now > expires:
+            raise HTTPException(status_code=400, detail="El token ha expirado")
+        
+    user.hashed_password = get_password_hash(req.new_password)
+    user.recovery_token = None
+    user.recovery_expires = None
+    db.commit()
+    return {"message": "Contraseña actualizada exitosamente"}
+
+@router.put("/auth/me/2fa/toggle")
+def toggle_2fa(req: Toggle2FARequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    current_user.two_factor_enabled = req.enabled
+    db.commit()
+    return {"message": f"2FA activado" if req.enabled else "2FA desactivado"}

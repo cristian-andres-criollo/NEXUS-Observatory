@@ -59,6 +59,7 @@ app.include_router(metrics,        prefix=PREFIX)
 app.include_router(export,         prefix=PREFIX)
 app.include_router(webauthn,       prefix=PREFIX)
 app.include_router(ingest.router,  prefix=PREFIX)
+
 app.include_router(proxy.router,   prefix="/proxy")
 
 @app.get("/api")
@@ -88,3 +89,8 @@ def serve_spa(full_path: str):
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return {"error": "Frontend no compilado. Ejecuta el build y cópialo a /static."}
+# reload
+# reload
+
+
+# reload

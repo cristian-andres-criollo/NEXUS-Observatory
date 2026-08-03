@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { metricsAPI, GlobalMetrics, LatencyPoint, CostPoint } from '../lib/api'
 
 // ── useMetrics ─────────────────────────────────────────────────────────────────
-export function useMetrics(isPersonal = false, autoRefresh = true, intervalMs = 10000) {
+export function useMetrics(isPersonal = false, autoRefresh = true, intervalMs = 10000, projectId?: number) {
   const [metrics, setMetrics] = useState<GlobalMetrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -10,7 +10,7 @@ export function useMetrics(isPersonal = false, autoRefresh = true, intervalMs = 
   // isPersonal incluido como dependencia para que el toggle global/personal recargue datos
   const fetchMetrics = useCallback(async () => {
     try {
-      const res = await metricsAPI.global(isPersonal)
+      const res = await metricsAPI.global(isPersonal, projectId)
       setMetrics(res.data)
       setError(null)
     } catch (e: any) {
@@ -20,7 +20,7 @@ export function useMetrics(isPersonal = false, autoRefresh = true, intervalMs = 
     } finally {
       setLoading(false)
     }
-  }, [isPersonal])
+  }, [isPersonal, projectId])
 
   useEffect(() => {
     setLoading(true)
@@ -35,13 +35,13 @@ export function useMetrics(isPersonal = false, autoRefresh = true, intervalMs = 
 }
 
 // ── useLatencyHistory ──────────────────────────────────────────────────────────
-export function useLatencyHistory(isPersonal = false, limit = 25) {
+export function useLatencyHistory(isPersonal = false, limit = 25, projectId?: number) {
   const [data, setData] = useState<LatencyPoint[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const fetchLatency = useCallback(async () => {
     try {
-      const res = await metricsAPI.latency(isPersonal, limit)
+      const res = await metricsAPI.latency(isPersonal, limit, projectId)
       setData(res.data)
       setError(null)
     } catch (e: any) {
@@ -49,7 +49,7 @@ export function useLatencyHistory(isPersonal = false, limit = 25) {
       setError(msg)
       console.warn('[useLatencyHistory] Error:', msg)
     }
-  }, [isPersonal, limit])
+  }, [isPersonal, limit, projectId])
 
   useEffect(() => {
     fetchLatency()
@@ -61,13 +61,13 @@ export function useLatencyHistory(isPersonal = false, limit = 25) {
 }
 
 // ── useCostHistory ─────────────────────────────────────────────────────────────
-export function useCostHistory(isPersonal = false, limit = 25) {
+export function useCostHistory(isPersonal = false, limit = 25, projectId?: number) {
   const [data, setData] = useState<CostPoint[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const fetchCost = useCallback(async () => {
     try {
-      const res = await metricsAPI.cost(isPersonal, limit)
+      const res = await metricsAPI.cost(isPersonal, limit, projectId)
       setData(res.data)
       setError(null)
     } catch (e: any) {
@@ -75,7 +75,7 @@ export function useCostHistory(isPersonal = false, limit = 25) {
       setError(msg)
       console.warn('[useCostHistory] Error:', msg)
     }
-  }, [isPersonal, limit])
+  }, [isPersonal, limit, projectId])
 
   useEffect(() => {
     fetchCost()

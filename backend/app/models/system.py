@@ -6,7 +6,11 @@ class SystemSettings(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     budget_cop = Column(Integer, default=500000)           # Presupuesto en Pesos Colombianos
-    trm_usd_cop = Column(Float, default=4200.0)            # Tasa de cambio COP/USD simulada
+    trm_usd_cop = Column(Float, default=4200.0)            # COP/USD
+    trm_usd_mxn = Column(Float, default=17.5)              # MXN/USD
+    trm_usd_ars = Column(Float, default=950.0)             # ARS/USD
+    trm_usd_clp = Column(Float, default=940.0)             # CLP/USD
+    trm_usd_pen = Column(Float, default=3.7)               # PEN/USD
     groq_cost_per_million = Column(Float, default=0.69)    # USD por millón de tokens
     anthropic_cost_per_million = Column(Float, default=15.0)
     openai_cost_per_million = Column(Float, default=10.0)

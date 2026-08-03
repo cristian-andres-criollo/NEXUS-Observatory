@@ -177,8 +177,9 @@ cd nexus-observatory
 docker-compose up -d --build
 ```
 
-Espera ~2 minutos y accede a:
-- **Dashboard**: http://localhost:8000
+Espera ~1 minuto y accede a:
+- **Dashboard (Frontend)**: http://localhost:3000
+- **API y Documentación (Backend)**: http://localhost:8000/docs
 
 Para detener todo:
 ```bash

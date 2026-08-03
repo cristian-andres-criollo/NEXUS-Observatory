@@ -9,6 +9,13 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "nexus-observatory-dev-secret-key-must-be-at-least-32-bytes"
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176"
 
+    # ── Email Notifications ──────────────────────────────────────────────────
+    EMAIL_HOST: str = ""
+    EMAIL_PORT: int = 587
+    EMAIL_USER: str = ""
+    EMAIL_PASS: str = ""
+    EMAIL_FROM: str = ""
+
     # ── Groq LLM ───────────────────────────────────────────────────────────
     # Puedes proveer múltiples API keys separadas por comas
     GROQ_API_KEYS: str = ""
@@ -56,8 +63,8 @@ class Settings(BaseSettings):
     HELICONE_API_KEY: str = ""
     HELICONE_BASE_URL: str = "https://oai.helicone.ai/v1"
 
-    # ── Base de datos ───────────────────────────────────────────────────────
-    DATABASE_URL: str = "sqlite:///./nexus.db"
+    # ── Database ─────────────────────────────────────────────────────────────
+    DATABASE_URL: str = "postgresql://nexus_admin:nexus_secure_password@localhost:5432/nexus_db"
 
     def get_cors_origins(self) -> List[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",")]

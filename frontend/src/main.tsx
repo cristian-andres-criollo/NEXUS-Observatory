@@ -16,15 +16,42 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         </ThemeProvider>
       </AuthProvider>
       <Toaster
-        position="bottom-right"
+        position="bottom-center"
         toastOptions={{
+          duration: 4000,
+          className: 'backdrop-blur-md',
           style: {
-            background: '#18181b',
-            color: '#fafafa',
-            border: '1px solid rgba(255,255,255,0.08)',
+            background: 'rgba(255, 255, 255, 0.9)',
+            color: '#1e293b',
+            border: '1px solid rgba(226, 232, 240, 0.8)',
             fontFamily: '"Plus Jakarta Sans", sans-serif',
             fontSize: '14px',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.2)',
+            fontWeight: '600',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+            padding: '16px 24px',
+            borderRadius: '16px',
+          },
+          success: {
+            iconTheme: {
+              primary: '#10b981',
+              secondary: '#ffffff',
+            },
+            style: {
+              background: 'rgba(236, 253, 245, 0.9)',
+              border: '1px solid rgba(16, 185, 129, 0.2)',
+              color: '#065f46',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: '#ef4444',
+              secondary: '#ffffff',
+            },
+            style: {
+              background: 'rgba(254, 242, 242, 0.9)',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              color: '#991b1b',
+            },
           },
         }}
       />

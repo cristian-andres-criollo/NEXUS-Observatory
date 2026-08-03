@@ -40,15 +40,14 @@ html {
 @layer base {
   body {
     font-family: var(--font-sans);
-    /* Fondo principal limpio */
-    background-color: #0a0a0b;
-    color: #f0f4f8;
+    /* Fondo principal claro por defecto */
+    background-color: #f8fafc;
+    color: #0f172a;
     font-size: 0.875rem;
     line-height: 1.6;
     letter-spacing: 0.01em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    /* Quitamos el gradient radial estático, lo manejaremos en Layout.tsx con divs animados */
     background-image: none;
     overflow: hidden;
     scroll-behavior: smooth;
@@ -59,6 +58,35 @@ html {
     letter-spacing: -0.02em;
     font-weight: 600;
   }
+}
+
+/* Functional Dark Mode Overrides */
+.dark body, .dark .bg-slate-50 {
+  background-color: #0a0a0b !important;
+  color: #f0f4f8 !important;
+}
+.dark .bg-white {
+  background-color: #18181b !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #f0f4f8 !important;
+}
+.dark .text-slate-900, .dark .text-slate-800 {
+  color: #f0f4f8 !important;
+}
+.dark .text-slate-700, .dark .text-slate-600, .dark .text-slate-500, .dark .text-slate-400 {
+  color: #a1a1aa !important;
+}
+.dark .border-slate-200, .dark .border-slate-100, .dark .border-slate-50 {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+.dark .bg-blue-50 {
+  background-color: rgba(14, 74, 255, 0.1) !important;
+}
+.dark .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+}
+.dark .bg-rose-50 {
+  background-color: rgba(244, 63, 94, 0.1) !important;
 }
 
 @layer components {

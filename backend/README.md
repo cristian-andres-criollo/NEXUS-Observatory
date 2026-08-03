@@ -36,3 +36,5 @@ Si deseas correr el backend de forma local (fuera de Docker) para desarrollo:
    ```bash
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
+
+| `EMAIL_HOST`, `EMAIL_PORT`, etc | Credenciales SMTP para enviar alertas crticas (ej. presupuesto agotado). |

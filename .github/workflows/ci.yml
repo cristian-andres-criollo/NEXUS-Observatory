@@ -1,0 +1,78 @@
+name: NEXUS Observatory CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    
+    # We need a PostgreSQL service to run backend integration tests
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: nexus_admin
+          POSTGRES_PASSWORD: nexus_secure_password
+          POSTGRES_DB: nexus_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        cache: 'pip'
+        cache-dependency-path: 'backend/requirements.txt'
+
+    - name: Install dependencies
+      working-directory: ./backend
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Backend Tests (Pytest)
+      working-directory: ./backend
+      env:
+        # Override the .env variable to point to the GitHub Actions postgres service
+        DATABASE_URL: postgresql://nexus_admin:nexus_secure_password@localhost:5432/nexus_db
+        FINOPS_DATABASE_URL: postgresql://nexus_admin:nexus_secure_password@localhost:5432/nexus_db
+        SECRET_KEY: test-secret-key
+        GROQ_API_KEYS: gsk_test1,gsk_test2
+        GROQ_MODEL: llama-3.1-8b-instant
+      run: |
+        pytest tests/ -v
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js 20
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+        cache: 'npm'
+        cache-dependency-path: 'frontend/package-lock.json'
+
+    - name: Install dependencies
+      working-directory: ./frontend
+      run: npm ci
+
+    - name: Run Frontend Tests (Vitest)
+      working-directory: ./frontend
+      run: npx vitest run
