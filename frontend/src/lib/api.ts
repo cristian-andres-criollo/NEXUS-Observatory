@@ -512,8 +512,6 @@ export interface AdminDashboardData {
   total_users: number;
   token_limit_per_user: number;
   llm_provider: string;
-  ollama_base_url: string;
-  ollama_model: string;
   payment_methods: any[];
   users: any[];
   projects: ProjectOut[];
@@ -527,11 +525,9 @@ export const adminAPI = {
       trm_usd_cop: trm,
       groq_cost_per_million: groq_rate,
     }),
-  updateLLMSettings: (llm_provider: string, ollama_base_url: string, ollama_model: string) =>
-    api.put('/admin/settings/llm', {
-      llm_provider,
-      ollama_base_url,
-      ollama_model
+  updateLLMSettings: (llm_provider: string) =>
+    api.put<{message: string, llm_provider: string}>('/admin/settings/llm', { 
+      llm_provider
     }),
   createUser: (email: string, password: string, role: string, plan: string) =>
     api.post('/admin/users', { email, password, role, plan }),
@@ -539,12 +535,6 @@ export const adminAPI = {
     api.put(`/admin/users/${encodeURIComponent(email)}`, data),
   deleteUser: (email: string) =>
     api.delete(`/admin/users/${encodeURIComponent(email)}`),
-  checkOllamaStatus: () =>
-    api.get<{status: string}>('/admin/ollama/status'),
-  startOllama: () =>
-    api.post<{message: string}>('/admin/ollama/start'),
-  stopOllama: () =>
-    api.post<{message: string}>('/admin/ollama/stop'),
   
   // Agentes de IA Controlados (ExternalProjects)
   listProjects: () => api.get<ProjectOut[]>('/admin/projects'),

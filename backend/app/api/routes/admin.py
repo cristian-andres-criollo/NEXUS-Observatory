@@ -18,7 +18,6 @@ from app.models.conversation import Conversation
 from app.models.external_project import ExternalProject, generate_api_key, hash_api_key
 from app.core.crypto import encrypt_api_key, mask_api_key, decrypt_api_key
 from app.api.routes.auth import get_current_admin_user, get_password_hash
-from app.core.ollama_controller import check_ollama_status, start_ollama_server, stop_ollama_server
 from fastapi import HTTPException, status
 from datetime import datetime, timezone
 
@@ -67,8 +66,6 @@ class BudgetUpdateRequest(BaseModel):
 
 class LLMSettingsUpdateRequest(BaseModel):
     llm_provider: str
-    ollama_base_url: str
-    ollama_model: str
 
 class PaymentMethodOut(BaseModel):
     id: int
@@ -119,8 +116,6 @@ class AdminDashboardResponse(BaseModel):
     users: List[UserStatsResponse]
     projects: List[ProjectOut]
     llm_provider: str
-    ollama_base_url: str
-    ollama_model: str
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
@@ -199,8 +194,6 @@ def get_admin_dashboard(db: Session = Depends(get_db), current_admin: User = Dep
         users=user_stats,
         projects=projects_out,
         llm_provider=s.llm_provider or "groq",
-        ollama_base_url=s.ollama_base_url or "http://localhost:11434",
-        ollama_model=s.ollama_model or "llama3",
     )
 
 @router.put("/admin/budget")
@@ -304,38 +297,11 @@ def update_admin_settings(req: BudgetUpdateRequest, db: Session = Depends(get_db
 def update_llm_settings(req: LLMSettingsUpdateRequest, db: Session = Depends(get_db), current_admin: User = Depends(get_current_admin_user)):
     s = _get_settings(db)
     s.llm_provider = req.llm_provider
-    s.ollama_base_url = req.ollama_base_url
-    s.ollama_model = req.ollama_model
     db.commit()
     return {
         "message": "Configuración de motor de IA actualizada",
-        "llm_provider": s.llm_provider,
-        "ollama_base_url": s.ollama_base_url,
-        "ollama_model": s.ollama_model
+        "llm_provider": s.llm_provider
     }
-
-# ── Endpoints de Ollama ────────────────────────────────────────────────────────
-
-@router.get("/admin/ollama/status")
-async def get_ollama_status(db: Session = Depends(get_db), current_admin: User = Depends(get_current_admin_user)):
-    s = _get_settings(db)
-    status_str = await check_ollama_status(s.ollama_base_url or "http://localhost:11434")
-    return {"status": status_str}
-
-@router.post("/admin/ollama/start")
-def post_start_ollama(current_admin: User = Depends(get_current_admin_user)):
-    success = start_ollama_server()
-    if not success:
-        raise HTTPException(status_code=500, detail="No se pudo iniciar el proceso de Ollama")
-    return {"message": "Servidor Ollama iniciando..."}
-
-@router.post("/admin/ollama/stop")
-def post_stop_ollama(current_admin: User = Depends(get_current_admin_user)):
-    success = stop_ollama_server()
-    if not success:
-        raise HTTPException(status_code=500, detail="No se pudo detener el proceso de Ollama")
-    return {"message": "Servidor Ollama detenido"}
-
 
 # ── Gestión de Proyectos Externos (API Keys para clientes) ─────────────────────
 

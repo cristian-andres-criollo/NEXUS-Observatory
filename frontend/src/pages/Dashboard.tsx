@@ -398,7 +398,7 @@ export function Dashboard() {
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
              <h2 className="text-lg font-bold text-slate-800 mb-6 border-b border-slate-100 pb-2">Control de Presupuesto</h2>
              
-             <div className="grid grid-cols-3 gap-3 mb-6">
+             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
                <div className="p-3 bg-slate-50 rounded-2xl text-center border border-slate-100">
                   <div className="text-xs font-semibold text-slate-500 mb-1">Tokens Consumidos</div>
                   <div className="text-xl font-bold text-slate-800">{tokensUsed.toLocaleString()}</div>
@@ -518,8 +518,8 @@ export function Dashboard() {
             <p className="text-xs mt-1">Las peticiones con <code className="bg-slate-100 px-1 rounded">X-Nexus-End-User-ID</code> aparecerán aquí automáticamente.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-xl border border-slate-100">
+            <table className="w-full text-sm min-w-[800px]">
               <thead>
                 <tr className="border-b border-slate-100">
                   <th className="text-left py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Usuario</th>
@@ -615,8 +615,8 @@ export function Dashboard() {
               <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-3 py-1 rounded-full">En tiempo real</span>
           </div>
           
-          <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
+          <div className="overflow-x-auto rounded-xl border border-slate-100">
+              <table className="w-full text-sm text-left min-w-[1000px]">
                   <thead className="bg-slate-50 text-slate-500 uppercase text-xs">
                       <tr>
                           <th className="px-4 py-3 rounded-tl-lg">Fecha/Hora</th>

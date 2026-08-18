@@ -2,13 +2,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from app.core.config import settings
 
-# SQLite para desarrollo local, PostgreSQL para Railway
-_connect_args = {"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {}
-
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
-    connect_args=_connect_args,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -86,15 +82,26 @@ def create_tables():
                 db.add(c)
 
         # 1. Crear admin si no existe
-        admin_email = "prueba@gmail.com"
+        import os
+        import secrets
+        
+        admin_email = os.getenv("ADMIN_INITIAL_EMAIL", "admin@nexus.io")
+        admin_pass = os.getenv("ADMIN_INITIAL_PASSWORD")
+        
         admin = db.query(User).filter(User.email == admin_email).first()
         if not admin:
+            if not admin_pass:
+                admin_pass = secrets.token_urlsafe(16)
+                print(f"\n[SECURITY WARNING] No se configuró ADMIN_INITIAL_PASSWORD en .env.")
+                print(f"[SECURITY WARNING] Se ha autogenerado una contraseña segura para {admin_email}.")
+                print(f"[SECURITY WARNING] Contraseña temporal: {admin_pass}\n")
+            
             db.add(User(
                 email=admin_email,
-                hashed_password=get_password_hash("12345678"),
+                hashed_password=get_password_hash(admin_pass),
                 role="admin",
                 plan="enterprise",
-                full_name="prueba administrador"
+                full_name="Administrador Global"
             ))
         
         db.commit()

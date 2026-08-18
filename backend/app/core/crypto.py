@@ -7,10 +7,22 @@ from app.core.config import settings
 import base64
 import hashlib
 
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.backends import default_backend
+
 def _get_fernet_key():
-    # Hasheamos el SECRET_KEY para tener exactamente 32 bytes y lo pasamos a base64
-    hasher = hashlib.sha256(settings.SECRET_KEY.encode('utf-8')).digest()
-    return base64.urlsafe_b64encode(hasher)
+    # Usamos PBKDF2HMAC para derivación robusta de la llave
+    salt = os.getenv("CRYPTO_SALT", "nexus-default-salt-123").encode('utf-8')
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100000,
+        backend=default_backend()
+    )
+    key = kdf.derive(settings.SECRET_KEY.encode('utf-8'))
+    return base64.urlsafe_b64encode(key)
 
 _fernet = Fernet(_get_fernet_key())
 

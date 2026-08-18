@@ -34,6 +34,7 @@ from app.db.database import get_db
 from app.models.external_project import ExternalProject
 from app.services.email_service import send_budget_alert_async
 import asyncio
+from app.core.rate_limit import limiter
 from app.models.conversation import Conversation
 from app.models.system import SystemSettings
 from app.models.agent_user import AgentUserLimit
@@ -77,6 +78,7 @@ def _detect_provider(model: str) -> str:
 # ── Endpoint principal ─────────────────────────────────────────────────────────
 
 @router.post("/v1/chat/completions")
+@limiter.limit("100/minute")
 async def proxy_chat_completions(
     request: Request,
     x_nexus_key: Optional[str] = Header(None, alias="X-Nexus-Key"),
@@ -158,19 +160,31 @@ async def proxy_chat_completions(
             remaining_cop = min(remaining_cop, user_remaining)
     
 
+    # Estimamos los tokens del prompt antes de enviar
+    prompt_text_estimate = str(body_json.get("messages", []))
+    estimated_prompt_tokens = len(prompt_text_estimate) // 4
+    
     trm = _get_trm(db)
     cost_per_million = _get_cost_per_million(model_name, db)
+    
     if cost_per_million > 0 and trm > 0:
         cost_per_token_cop = (cost_per_million / 1_000_000.0) * trm
-        max_affordable_tokens = int(remaining_cop / cost_per_token_cop)
+        max_affordable_tokens_total = int(remaining_cop / cost_per_token_cop)
+        max_affordable_output_tokens = max_affordable_tokens_total - estimated_prompt_tokens
         
+        if max_affordable_output_tokens <= 0:
+            raise HTTPException(
+                status_code=402,
+                detail=f"Presupuesto insuficiente. Tu prompt cuesta demasiado para el saldo actual (${remaining_cop:,.0f} COP)."
+            )
+            
         req_max_tokens = body_json.get("max_tokens")
-        # Solo inyectar/sobreescribir max_tokens si el presupuesto es verdaderamente restrictivo
-        # para no enviar valores altísimos que rompan la API del proveedor
-        if max_affordable_tokens < 100000:
-            safe_output_limit = max(1, max_affordable_tokens - 1000)
-            if req_max_tokens is None or safe_output_limit < req_max_tokens:
-                body_json["max_tokens"] = safe_output_limit
+        
+        # Limitar estrictamente los tokens de salida para que no superen el presupuesto restante ni el límite técnico
+        strict_max_tokens = min(4096, max_affordable_output_tokens)
+        
+        if req_max_tokens is None or strict_max_tokens < req_max_tokens:
+            body_json["max_tokens"] = strict_max_tokens
 
     is_streaming = body_json.get('stream', False)
     start_ts = datetime.now(timezone.utc).timestamp()
@@ -186,9 +200,10 @@ async def proxy_chat_completions(
     elif provider == 'openai' and not litellm_model.startswith('openai/'):
         litellm_model = f'openai/{litellm_model}'
 
-    # Remueve el model del body_json para pasarlo como kwargs
+    # Remueve el model y el stream del body_json para pasarlo como kwargs
     messages = body_json.pop('messages', [])
     body_json.pop('model', None)
+    body_json.pop('stream', None)
     
     try:
         if is_streaming:

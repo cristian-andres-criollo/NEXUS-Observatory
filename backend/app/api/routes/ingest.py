@@ -101,6 +101,19 @@ class IngestRequest(BaseModel):
     user_message: Optional[str] = ""          # prompt (opcional, puede omitirse por privacidad)
     assistant_message: Optional[str] = ""     # respuesta (opcional)
 
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "model": "gpt-4o",
+                "tokens_in": 150,
+                "tokens_out": 300,
+                "latency_ms": 1250,
+                "module": "chat_general",
+                "user_message": "¿Cuál es la capital de Francia?",
+                "assistant_message": "La capital de Francia es París."
+            }
+        }
+
 
 class IngestResponse(BaseModel):
     ok: bool
@@ -116,7 +129,12 @@ class IngestResponse(BaseModel):
 
 # ── Endpoint principal ─────────────────────────────────────────────────────────
 
-@router.post("/ingest", response_model=IngestResponse)
+@router.post(
+    "/ingest",
+    response_model=IngestResponse,
+    summary="Ingestar métricas de LLM",
+    description="Recibe los datos de una petición a un LLM desde un sistema externo. Verifica el presupuesto en tiempo real, convierte el gasto a COP y evalúa el Kill Switch."
+)
 def ingest_metrics(
     body: IngestRequest,
     x_nexus_key: str = Header(..., alias="X-Nexus-Key"),

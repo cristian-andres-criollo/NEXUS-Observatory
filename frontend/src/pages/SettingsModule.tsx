@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User as UserIcon, Shield, Sparkles, Bell, Lock, Globe, Server, Users, Key, Plus, Trash2, RefreshCw, Copy, Check, Power } from 'lucide-react';
+import { User as UserIcon, Shield, Sparkles, Bell, Lock, Globe, Server, Users, Key, Plus, Trash2, RefreshCw, Copy, Check, Power, FileText, Download } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { authAPI, adminAPI, metricsAPI, ProjectOut } from '../lib/api';
 import toast from 'react-hot-toast';
@@ -8,6 +8,7 @@ import { Spinner } from '../components/ui/Spinner';
 import { formatCurrency } from '../lib/currency';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 
 export function SettingsModule() {
   const { user, updateUser } = useAuth();
@@ -72,6 +73,8 @@ export function SettingsModule() {
   const [reportGenerating, setReportGenerating] = useState(false);
   const [reportStartDate, setReportStartDate] = useState('');
   const [reportEndDate, setReportEndDate] = useState('');
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportData, setReportData] = useState<any>(null);
 
   // Passkey
   const [passkeyLoading, setPasskeyLoading] = useState(false);
@@ -165,7 +168,7 @@ export function SettingsModule() {
     }
   };
 
-  const handleGenerateReport = async () => {
+  const handlePreviewReport = async () => {
     setReportGenerating(true);
     try {
       // Usamos metricsAPI
@@ -175,67 +178,70 @@ export function SettingsModule() {
       const resAdmin = await adminAPI.getDashboard();
       const adminData = resAdmin.data;
       
-      const doc = new jsPDF();
-      
-      // Título
-      doc.setFontSize(22);
-      doc.setTextColor(30, 58, 138); // blue-900
-      doc.text("Nexus Observatory", 14, 20);
-      
-      doc.setFontSize(14);
-      doc.setTextColor(100);
-      doc.text("Reporte de Trazabilidad del Sistema", 14, 28);
-      
-      doc.setFontSize(10);
-      doc.text(`Generado: ${new Date().toLocaleString()}`, 14, 34);
-      doc.text(`Período Seleccionado: ${reportPeriod === 'custom' ? `${reportStartDate} a ${reportEndDate}` : reportPeriod}`, 14, 40);
-      
-      // Resumen
-      doc.setFontSize(12);
-      doc.setTextColor(0);
-      doc.text("Resumen Global", 14, 52);
-      
-      autoTable(doc, {
-        startY: 56,
-        head: [['Métrica', 'Valor']],
-        body: [
-          ['Total Agentes Activos', (adminData?.projects?.filter(p => p.is_active)?.length || 0).toString()],
-          ['Tokens Consumidos', (metrics.total_tokens || 0).toLocaleString()],
-          ['Costo Total Estimado', formatCurrency((metrics.total_cost_usd || 0) * 4000, 'COP')],
-          ['Peticiones Registradas', (metrics.total_conversations || 0).toString()]
-        ],
-        theme: 'grid',
-        headStyles: { fillColor: [37, 99, 235] }
-      });
-      
-      // Tabla de Trazas
-      let finalY = (doc as any).lastAutoTable.finalY || 56;
-      doc.text("Últimas Peticiones (Trazas)", 14, finalY + 12);
-      
-      const tracesData = (metrics.recent_conversations || []).map((t: any) => [
-        t.created_at ? t.created_at.replace('Z', '').split('.')[0].replace('T', ' ') : 'N/A',
-        t.project_name || 'Global',
-        t.module || 'Desconocido',
-        t.tokens_used?.toString() || '0',
-        formatCurrency(t.cost_usd * 4000 || 0, 'COP') // Approx USD to COP
-      ]);
-
-      autoTable(doc, {
-        startY: finalY + 16,
-        head: [['Fecha', 'Agente', 'Módulo/Función', 'Tokens', 'Costo Estimado (COP)']],
-        body: tracesData,
-        theme: 'striped',
-        headStyles: { fillColor: [51, 65, 85] }
-      });
-      
-      doc.save(`nexus_reporte_${new Date().getTime()}.pdf`);
-      toast.success('Reporte generado exitosamente');
+      setReportData({ metrics, adminData });
+      setIsReportModalOpen(true);
+      toast.success('Reporte generado en el sistema');
       
     } catch (err) {
       toast.error('Error al generar el reporte');
       console.error(err);
     } finally {
       setReportGenerating(false);
+    }
+  };
+
+  const downloadPDF = async () => {
+    if (!reportData) return;
+    try {
+      const loadingToast = toast.loading('Generando reporte PDF...');
+      const element = document.getElementById('report-preview-content');
+      if (!element) {
+        toast.error('No se encontró el contenido para exportar', { id: loadingToast });
+        return;
+      }
+
+      // Hide scrollbars temporarily for a cleaner capture
+      const originalOverflow = element.style.overflow;
+      element.style.overflow = 'hidden';
+
+      const canvas = await html2canvas(element, {
+        scale: 2, // High resolution
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+      });
+
+      element.style.overflow = originalOverflow;
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgProps = pdf.getImageProperties(imgData);
+      
+      const margin = 0;
+      const contentWidth = pdfWidth - (margin * 2);
+      const contentHeight = (imgProps.height * contentWidth) / imgProps.width;
+      
+      if (contentHeight <= pdfHeight) {
+        pdf.addImage(imgData, 'JPEG', margin, 0, contentWidth, contentHeight);
+      } else {
+        const scaledWidth = (imgProps.width * pdfHeight) / imgProps.height;
+        pdf.addImage(imgData, 'JPEG', (pdfWidth - scaledWidth) / 2, 0, scaledWidth, pdfHeight);
+      }
+
+      pdf.save(`Nexus_Reporte_${new Date().toISOString().split('T')[0]}.pdf`);
+      toast.success('Reporte descargado exitosamente', { id: loadingToast });
+      
+    } catch (err) {
+      toast.error('Error al generar el PDF');
+      console.error(err);
     }
   };
 
@@ -246,24 +252,24 @@ export function SettingsModule() {
       <aside className="w-full md:w-64 shrink-0">
         <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-8">{t.settings}</h1>
         
-        <nav className="flex flex-col gap-2">
-          <button onClick={() => setActiveTab('profile')} className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'profile' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}>
+        <nav className="flex flex-row md:flex-col gap-2 overflow-x-auto pb-4 md:pb-0 scrollbar-hide w-full">
+          <button onClick={() => setActiveTab('profile')} className={`flex items-center gap-2 md:gap-3 px-4 py-3 rounded-xl font-medium transition-all whitespace-nowrap ${activeTab === 'profile' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}>
             <UserIcon className="w-5 h-5" /> {t.profile}
           </button>
-          <button onClick={() => setActiveTab('preferences')} className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'preferences' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}>
+          <button onClick={() => setActiveTab('preferences')} className={`flex items-center gap-2 md:gap-3 px-4 py-3 rounded-xl font-medium transition-all whitespace-nowrap ${activeTab === 'preferences' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}>
             <Sparkles className="w-5 h-5" /> {t.preferences}
           </button>
           
-          <div className="h-px bg-slate-200 my-2"></div>
+          <div className="hidden md:block h-px bg-slate-200 my-2"></div>
           
-          <button onClick={() => setActiveTab('reports')} className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'reports' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}>
+          <button onClick={() => setActiveTab('reports')} className={`flex items-center gap-2 md:gap-3 px-4 py-3 rounded-xl font-medium transition-all whitespace-nowrap ${activeTab === 'reports' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}>
             <Server className="w-5 h-5" /> Reportes (PDF)
           </button>
           {user?.role === 'admin' && (
             <>
-              <div className="h-px bg-slate-200 my-2"></div>
-              <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{t.admin}</p>
-              <button onClick={() => setActiveTab('users')} className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'users' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}>
+              <div className="hidden md:block h-px bg-slate-200 my-2"></div>
+              <p className="hidden md:block px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{t.admin}</p>
+              <button onClick={() => setActiveTab('users')} className={`flex items-center gap-2 md:gap-3 px-4 py-3 rounded-xl font-medium transition-all whitespace-nowrap ${activeTab === 'users' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}>
                 <Users className="w-5 h-5" /> {t.agents}
               </button>
             </>
@@ -488,12 +494,12 @@ export function SettingsModule() {
 
               <div className="pt-6 border-t border-slate-100">
                 <button 
-                  onClick={handleGenerateReport} 
+                  onClick={handlePreviewReport} 
                   disabled={reportGenerating || (reportPeriod === 'custom' && (!reportStartDate || !reportEndDate))}
                   className="w-full px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
                 >
                   {reportGenerating ? <Spinner size={20} /> : null}
-                  {reportGenerating ? 'Generando PDF...' : 'Descargar Reporte (PDF)'}
+                  {reportGenerating ? 'Generando Reporte...' : 'Generar Reporte (Vista Previa)'}
                 </button>
               </div>
             </div>
@@ -512,8 +518,8 @@ export function SettingsModule() {
              {projectsLoading ? (
                <div className="flex justify-center p-8"><Spinner size={32} /></div>
              ) : (
-               <div className="overflow-x-auto">
-                 <table className="w-full text-sm text-left">
+               <div className="overflow-x-auto rounded-xl border border-slate-200">
+                 <table className="w-full text-sm text-left min-w-[800px]">
                    <thead className="bg-slate-50 text-slate-500 uppercase text-xs">
                      <tr>
                        <th className="px-4 py-3 rounded-tl-lg">Nombre</th>
@@ -607,7 +613,7 @@ export function SettingsModule() {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-semibold text-slate-700 block mb-1">Proveedor de IA (BYOK)</label>
                   <select required value={newProject.llm_provider} onChange={e => setNewProject({...newProject, llm_provider: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 outline-none">
@@ -651,6 +657,123 @@ export function SettingsModule() {
             <button onClick={() => setNewKey(null)} className="w-full px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl transition-colors">
               He copiado la clave
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Vista Previa de Reporte */}
+      {isReportModalOpen && reportData && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white rounded-2xl md:rounded-3xl w-full max-w-5xl max-h-[95vh] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header del Modal */}
+            <div className="p-4 md:p-6 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-50 shrink-0 gap-4">
+              <div>
+                <h2 className="text-xl md:text-2xl font-bold text-slate-800 flex items-center gap-2">
+                  <FileText className="w-5 h-5 md:w-6 md:h-6 text-blue-600" /> Vista Previa del Reporte
+                </h2>
+                <p className="text-xs md:text-sm text-slate-500 mt-1">Período Seleccionado: {reportPeriod === 'custom' ? `${reportStartDate} a ${reportEndDate}` : reportPeriod}</p>
+              </div>
+              <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                <button onClick={() => setIsReportModalOpen(false)} className="px-4 py-2 md:px-5 md:py-2.5 text-sm md:text-base text-slate-600 hover:bg-slate-200 bg-slate-100 font-semibold rounded-xl transition-colors">
+                  Cerrar
+                </button>
+                <button onClick={downloadPDF} className="px-4 py-2 md:px-5 md:py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm md:text-base font-bold rounded-xl transition-all shadow-md hover:shadow-lg flex items-center gap-2 whitespace-nowrap">
+                  <Download className="w-4 h-4 md:w-5 md:h-5" /> Descargar PDF
+                </button>
+              </div>
+            </div>
+
+            {/* Contenido del Reporte (Estilo A4 PDF) */}
+            <div className="flex-1 overflow-auto bg-slate-300 p-2 sm:p-4 md:p-8 flex justify-center items-start">
+              
+              <div id="report-preview-content" className="bg-white w-full max-w-[210mm] min-h-[297mm] shadow-2xl flex flex-col shrink-0 relative" style={{ boxSizing: 'border-box' }}>
+                
+                {/* Header Empresarial */}
+                <div className="bg-[#1E3A8A] w-full px-6 md:px-14 py-8 flex flex-col justify-center">
+                   <h1 className="text-white text-2xl md:text-3xl font-bold m-0 tracking-wide font-sans">NEXUS OBSERVATORY</h1>
+                   <p className="text-white/90 text-xs md:text-sm mt-1 font-light">Inteligencia Artificial y Trazabilidad de Consumo</p>
+                </div>
+
+                <div className="px-6 md:px-14 py-10 flex-1 flex flex-col">
+                  {/* Meta Data y Fechas */}
+                  <div className="mb-10">
+                    <h2 className="text-[#323232] text-xl md:text-2xl font-bold mb-3">Reporte Ejecutivo del Sistema</h2>
+                    <div className="h-px w-full bg-slate-300 mb-5"></div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between items-start text-xs md:text-sm text-slate-600 gap-2">
+                      <div>
+                        <p>Fecha de Generación: {new Date().toLocaleString()}</p>
+                        <p className="mt-1">Período Seleccionado: {reportPeriod === 'custom' ? `${reportStartDate} a ${reportEndDate}` : reportPeriod.toUpperCase()}</p>
+                      </div>
+                      <div className="sm:text-right">
+                        <p>Generado por: {user?.full_name || user?.email || 'Administrador'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* KPIs - Tarjetas Visuales */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+                    <div className="bg-indigo-50 border border-indigo-600 rounded p-4">
+                      <p className="text-[10px] font-bold text-slate-500 mb-2">TOTAL AGENTES</p>
+                      <p className="text-xl font-bold text-indigo-600">{reportData.adminData?.projects?.filter((p: any) => p.is_active)?.length || 0}</p>
+                    </div>
+                    <div className="bg-emerald-50 border border-emerald-600 rounded p-4">
+                      <p className="text-[10px] font-bold text-slate-500 mb-2">TOKENS USADOS</p>
+                      <p className="text-xl font-bold text-emerald-600">{(reportData.metrics.total_tokens || 0).toLocaleString()}</p>
+                    </div>
+                    <div className="bg-purple-50 border border-purple-600 rounded p-4">
+                      <p className="text-[10px] font-bold text-slate-500 mb-2">COSTO EST. (COP)</p>
+                      <p className="text-xl font-bold text-purple-600 truncate">{formatCurrency((reportData.metrics.total_cost_usd || 0) * 4000, 'COP')}</p>
+                    </div>
+                    <div className="bg-amber-50 border border-amber-600 rounded p-4">
+                      <p className="text-[10px] font-bold text-slate-500 mb-2">PETICIONES</p>
+                      <p className="text-xl font-bold text-amber-600">{(reportData.metrics.total_conversations || 0).toString()}</p>
+                    </div>
+                  </div>
+
+                  {/* Tabla de Trazas */}
+                  <div className="mb-8 overflow-x-auto">
+                    <h3 className="text-[#323232] text-lg md:text-xl font-bold mb-4">Desglose de Peticiones Recientes</h3>
+                    <table className="w-full text-xs md:text-sm border-collapse min-w-[600px]">
+                      <thead>
+                        <tr className="bg-[#1E3A8A] text-white">
+                          <th className="py-2.5 px-3 text-left font-bold border border-[#1E3A8A]">Fecha y Hora</th>
+                          <th className="py-2.5 px-3 text-left font-bold border border-[#1E3A8A] text-center">Agente</th>
+                          <th className="py-2.5 px-3 text-left font-bold border border-[#1E3A8A]">Módulo</th>
+                          <th className="py-2.5 px-3 text-right font-bold border border-[#1E3A8A]">Tokens</th>
+                          <th className="py-2.5 px-3 text-right font-bold border border-[#1E3A8A]">Costo (COP)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportData.metrics.recent_conversations?.length ? (
+                          reportData.metrics.recent_conversations.map((t: any, i: number) => (
+                            <tr key={i} className={i % 2 !== 0 ? 'bg-slate-50' : 'bg-white'}>
+                              <td className="py-2 px-3 border border-slate-200 text-slate-600 whitespace-nowrap">{t.created_at ? t.created_at.replace('Z', '').split('.')[0].replace('T', ' ') : 'N/A'}</td>
+                              <td className="py-2 px-3 border border-slate-200 text-slate-800 font-bold text-center">{t.project_name || 'Global'}</td>
+                              <td className="py-2 px-3 border border-slate-200 text-slate-600">{t.module || 'Desconocido'}</td>
+                              <td className="py-2 px-3 border border-slate-200 text-slate-600 text-right">{t.tokens_used?.toString() || '0'}</td>
+                              <td className="py-2 px-3 border border-slate-200 text-slate-600 text-right">{formatCurrency(t.cost_usd * 4000 || 0, 'COP')}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr><td colSpan={5} className="py-8 text-center text-slate-400 border border-slate-200">No hay trazas registradas</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Spacer for pushing footer down */}
+                  <div className="flex-1"></div>
+
+                  {/* Footer (Página) */}
+                  <div className="mt-8 pt-4 border-t border-slate-200 flex justify-between items-center text-[10px] md:text-xs text-slate-400">
+                    <span className="w-16 md:w-20">Página 1</span>
+                    <span className="flex-1 text-center">Reporte confidencial generado por Nexus Observatory.</span>
+                    <span className="w-16 md:w-20 text-right"></span>
+                  </div>
+
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

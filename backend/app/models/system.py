@@ -16,10 +16,8 @@ class SystemSettings(Base):
     openai_cost_per_million = Column(Float, default=10.0)
     google_cost_per_million = Column(Float, default=7.0)
     
-    # Configuración del Motor de IA
-    llm_provider = Column(String, default="groq")          # "groq" o "ollama"
-    ollama_base_url = Column(String, default="http://localhost:11434")
-    ollama_model = Column(String, default="llama3")
+    # Configuración del Motor de IA (SaaS Only)
+    llm_provider = Column(String, default="groq")          # "groq", "openai", "anthropic", etc.
 
 class PaymentMethod(Base):
     __tablename__ = "payment_methods"

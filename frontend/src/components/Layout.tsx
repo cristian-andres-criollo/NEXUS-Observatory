@@ -1,17 +1,48 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
-import { LayoutDashboard, Wallet, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Wallet, Settings, LogOut, Menu, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export function Layout() {
   const { logout, user } = useAuth();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const closeMenu = () => setIsMobileMenuOpen(false);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 font-sans text-slate-800">
+    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 font-sans text-slate-800 flex-col md:flex-row">
+      
+      {/* Mobile Top Bar */}
+      <header className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shrink-0 z-40 relative">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-md">
+            <span className="text-white font-bold text-lg">N</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-lg font-bold tracking-tight text-slate-900 leading-none">Nexus</span>
+            <span className="text-[9px] font-bold tracking-widest text-blue-600 uppercase mt-0.5">Observatory</span>
+          </div>
+        </div>
+        <button 
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+        >
+          {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+      </header>
+
+      {/* Overlay Backdrop for Mobile */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/50 z-40 md:hidden backdrop-blur-sm transition-opacity"
+          onClick={closeMenu}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col justify-between shrink-0 h-full">
-        <div className="p-6">
-          <div className="mb-8 flex items-center gap-3">
+      <aside className={`fixed md:static inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 flex flex-col justify-between h-full transform transition-transform duration-300 ease-in-out md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
+        <div className="p-6 overflow-y-auto">
+          <div className="hidden md:flex mb-8 items-center gap-3">
              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-md">
                 <span className="text-white font-bold text-xl">N</span>
              </div>
@@ -24,6 +55,7 @@ export function Layout() {
           <nav className="flex flex-col gap-2">
             <NavLink
               to="/"
+              onClick={closeMenu}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${
                   isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -34,6 +66,7 @@ export function Layout() {
             </NavLink>
             <NavLink
               to="/finops"
+              onClick={closeMenu}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${
                   isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -44,6 +77,7 @@ export function Layout() {
             </NavLink>
             <NavLink
               to="/settings"
+              onClick={closeMenu}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${
                   isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -79,7 +113,7 @@ export function Layout() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden relative z-0">
         <Outlet />
       </main>
     </div>
