@@ -7,15 +7,15 @@ import {
 import { useAuth } from '../../context/AuthContext'
 
 const navItems = [
-  { path: '/',          icon: LayoutDashboard, label: 'DASHBOARD',   sub: 'Métricas de uso', plans: ['community', 'team', 'enterprise'] },
-  { path: '/finops',    icon: Activity,        label: 'FINOPS',      sub: 'Costos y Tokens', plans: ['team', 'enterprise'] },
+  { path: '/',       icon: LayoutDashboard, label: 'DASHBOARD', sub: 'Métricas de uso' },
+  { path: '/finops', icon: Activity,        label: 'FINOPS',    sub: 'Costos y Tokens' },
 ]
 
 const toolLinks = [
-  { to: '/?tab=langsmith', label: 'LangSmith',    color: '#00e676', plans: ['team', 'enterprise'] },
-  { to: '/?tab=helicone',  label: 'Helicone',     color: '#00d4ff', plans: ['team', 'enterprise'] },
-  { to: '/?tab=weave',     label: 'W&B Weave',    color: '#ff6b35', plans: ['team', 'enterprise'] },
-  { to: '/?tab=phoenix',   label: 'Arize Phoenix',color: '#0e4aff', plans: ['team', 'enterprise'] },
+  { to: '/?tab=langsmith', label: 'LangSmith',    color: '#00e676' },
+  { to: '/?tab=helicone',  label: 'Helicone',     color: '#00d4ff' },
+  { to: '/?tab=weave',     label: 'W&B Weave',    color: '#ff6b35' },
+  { to: '/?tab=phoenix',   label: 'Arize Phoenix', color: '#0e4aff' },
 ]
 
 interface SidebarProps {
@@ -24,7 +24,6 @@ interface SidebarProps {
 }
 
 export function Sidebar({ onClose, isMobile = false }: SidebarProps) {
-  const { user } = useAuth()
 
   return (
     <aside className="w-full h-full bg-nexus-black border-r border-nexus-navy flex flex-col flex-shrink-0 overflow-y-auto nexus-scrollbar relative">
@@ -65,7 +64,7 @@ export function Sidebar({ onClose, isMobile = false }: SidebarProps) {
           <div className="flex-1 h-px bg-gradient-to-r from-white/10 to-transparent" />
         </div>
         
-        {navItems.filter(item => item.plans.includes(user?.plan || 'community') || user?.role === 'admin').map(({ path, icon: Icon, label, sub }, index) => (
+        {navItems.map(({ path, icon: Icon, label, sub }, index) => (
           <NavLink
             key={path}
             to={path}
@@ -95,14 +94,13 @@ export function Sidebar({ onClose, isMobile = false }: SidebarProps) {
       </nav>
 
       {/* External tool links */}
-      {(user?.role === 'admin' || user?.plan === 'team' || user?.plan === 'enterprise') && (
-        <div className="px-4 pb-4 border-t border-white/5 pt-5 relative z-10">
+      <div className="px-4 pb-4 border-t border-white/5 pt-5 relative z-10">
           <div className="font-display font-semibold text-[10px] text-nexus-dim tracking-widest px-2 mb-3 uppercase flex items-center gap-2">
             Telemetría
             <div className="flex-1 h-px bg-gradient-to-r from-white/10 to-transparent" />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            {toolLinks.filter(t => t.plans.includes(user?.plan || 'community') || user?.role === 'admin').map(({ to, label, color }) => (
+            {toolLinks.map(({ to, label, color }) => (
               <Link
                 key={to}
                 to={to}
@@ -114,7 +112,6 @@ export function Sidebar({ onClose, isMobile = false }: SidebarProps) {
             ))}
           </div>
         </div>
-      )}
 
       {/* Footer */}
       <div className="p-4 border-t border-white/5 relative z-10 flex-shrink-0 space-y-2">
