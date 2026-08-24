@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
-import { LayoutDashboard, Wallet, Settings, LogOut, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Wallet, Settings, LogOut, Menu, X, Bot } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export function Layout() {
@@ -74,6 +74,17 @@ export function Layout() {
               }
             >
               <Wallet className="w-5 h-5" /> Finanzas
+            </NavLink>
+            <NavLink
+              to="/agents"
+              onClick={closeMenu}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${
+                  isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`
+              }
+            >
+              <Bot className="w-5 h-5" /> Agentes
             </NavLink>
             <NavLink
               to="/settings"
