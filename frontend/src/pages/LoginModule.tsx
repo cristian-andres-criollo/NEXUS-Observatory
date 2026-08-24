@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, Eye, EyeOff, Sparkles, LogIn, KeyRound } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -13,6 +14,7 @@ export function LoginModule() {
   const [requires2FA, setRequires2FA] = useState(false);
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const { login } = useAuth();
+  const navigate = useNavigate();
   
   const searchParams = new URLSearchParams(window.location.search);
   const tokenFromUrl = searchParams.get('token');
@@ -69,6 +71,7 @@ export function LoginModule() {
         const res = await authAPI.verify2FA(email, twoFactorCode);
         login(res.data.access_token, res.data);
         toast.success('Autenticación exitosa');
+        navigate('/', { replace: true });
       } catch (err: any) {
         toast.error(err.response?.data?.detail || 'Código incorrecto');
       } finally {
@@ -92,6 +95,7 @@ export function LoginModule() {
       } else {
         login(res.data.access_token, res.data);
         toast.success(`¡Bienvenido de vuelta!`);
+        navigate('/', { replace: true });
       }
     } catch (err: any) {
       toast.error(err.response?.data?.detail || 'Ocurrió un error al intentar acceder.');
