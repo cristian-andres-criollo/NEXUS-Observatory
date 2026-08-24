@@ -80,7 +80,7 @@ export function SettingsModule() {
   const [passkeyLoading, setPasskeyLoading] = useState(false);
 
   useEffect(() => {
-    if (activeTab === 'users' && user?.role === 'admin') {
+    if (activeTab === 'users') {
       fetchProjects();
     }
   }, [activeTab]);
@@ -265,15 +265,11 @@ export function SettingsModule() {
           <button onClick={() => setActiveTab('reports')} className={`flex items-center gap-2 md:gap-3 px-4 py-3 rounded-xl font-medium transition-all whitespace-nowrap ${activeTab === 'reports' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}>
             <Server className="w-5 h-5" /> Reportes (PDF)
           </button>
-          {user?.role === 'admin' && (
-            <>
-              <div className="hidden md:block h-px bg-slate-200 my-2"></div>
-              <p className="hidden md:block px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{t.admin}</p>
-              <button onClick={() => setActiveTab('users')} className={`flex items-center gap-2 md:gap-3 px-4 py-3 rounded-xl font-medium transition-all whitespace-nowrap ${activeTab === 'users' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}>
-                <Users className="w-5 h-5" /> {t.agents}
-              </button>
-            </>
-          )}
+          <div className="hidden md:block h-px bg-slate-200 my-2"></div>
+          <p className="hidden md:block px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{t.admin}</p>
+          <button onClick={() => setActiveTab('users')} className={`flex items-center gap-2 md:gap-3 px-4 py-3 rounded-xl font-medium transition-all whitespace-nowrap ${activeTab === 'users' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}>
+            <Users className="w-5 h-5" /> {t.agents}
+          </button>
         </nav>
       </aside>
 
@@ -506,7 +502,7 @@ export function SettingsModule() {
           </div>
         )}
 
-        {activeTab === 'users' && user?.role === 'admin' && (
+        {activeTab === 'users' && (
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
              <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Users className="w-6 h-6 text-blue-500" /> Agentes de IA Controlados</h2>
