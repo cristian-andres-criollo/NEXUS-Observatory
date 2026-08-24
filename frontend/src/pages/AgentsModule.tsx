@@ -41,8 +41,17 @@ export function AgentsModule() {
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await adminAPI.createProject(newProject);
-      setNewKey(res.data.api_key);
+      const functionsStr = newProject.functions.join(", ");
+      const res = await adminAPI.createProject(
+        newProject.name,
+        newProject.description,
+        newProject.plan,
+        newProject.budget_cop,
+        functionsStr,
+        newProject.llm_provider,
+        newProject.llm_api_key
+      );
+      setNewKey((res.data as any).api_key || res.data.api_key);
       toast.success("Agente creado exitosamente");
       setIsProjectModalOpen(false);
       setNewProject({ name: "", description: "", plan: "starter", budget_cop: 50000, functions: [], llm_provider: "groq", llm_api_key: "" });
@@ -54,7 +63,7 @@ export function AgentsModule() {
     if (!confirm("Rotar la API Key dejará inválida la clave actual. ¿Continuar?")) return;
     try {
       const res = await adminAPI.resetProjectKey(id);
-      setNewKey(res.data.new_api_key);
+      setNewKey(res.data.api_key);
       toast.success("API Key rotada");
     } catch { toast.error("Error al rotar la API Key"); }
   };
