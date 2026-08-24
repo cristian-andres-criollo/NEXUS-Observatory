@@ -6,6 +6,7 @@ import { Dashboard } from './pages/Dashboard'
 import { LoginModule } from './pages/LoginModule'
 import { SettingsModule } from './pages/SettingsModule'
 import { FinOpsModule } from './pages/FinOpsModule'
+import { AgentsModule } from './pages/AgentsModule'
 import { Layout } from './components/Layout'
 
 export default function App() {
@@ -29,6 +30,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/finops" element={<FinOpsModule />} />
+          <Route path="/agents" element={<AgentsModule />} />
           <Route path="/settings" element={<SettingsModule />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
