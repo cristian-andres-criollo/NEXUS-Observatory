@@ -157,7 +157,7 @@ export function AgentsModule() {
                       </div>
                     </td>
                   </tr>
-                ) : projects.map(p => (
+                ) : (projects || []).map(p => (
                   <tr key={p.id} className="border-t border-slate-50 hover:bg-slate-50/60 transition-colors">
                     <td className="px-6 py-4 font-bold text-slate-800">{p.name}</td>
                     <td className="px-6 py-4 text-slate-500 font-mono text-xs uppercase">{p.llm_provider || "groq"}</td>

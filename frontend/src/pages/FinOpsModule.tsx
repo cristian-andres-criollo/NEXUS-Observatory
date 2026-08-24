@@ -135,7 +135,7 @@ export function FinOpsModule() {
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {adminData?.projects.map(proj => (
+          {(adminData?.projects || []).map(proj => (
             <div 
               key={proj.id} 
               onClick={() => setSelectedAgentId(proj.id)}
@@ -361,7 +361,7 @@ export function FinOpsModule() {
           <div className="space-y-3 overflow-y-auto pr-2 flex-1 max-h-[400px]">
             {loadingMetrics ? (
               <div className="flex justify-center p-4"><Spinner size={24} /></div>
-            ) : costHistory.map((item: any, i: number) => (
+            ) : (costHistory || []).map((item: any, i: number) => (
               <div key={i} className="flex justify-between items-center p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm border border-slate-100">

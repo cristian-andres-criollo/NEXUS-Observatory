@@ -528,9 +528,9 @@ export function SettingsModule() {
                      </tr>
                    </thead>
                    <tbody>
-                     {projects.length === 0 ? (
+                     {(projects || []).length === 0 ? (
                         <tr><td colSpan={7} className="text-center py-6 text-slate-400">No hay agentes registrados</td></tr>
-                     ) : projects.map(p => (
+                     ) : (projects || []).map(p => (
                        <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50/50">
                          <td className="px-4 py-4 font-bold text-slate-800">{p.name}</td>
                          <td className="px-4 py-4 text-slate-500 font-mono text-xs uppercase">{p.llm_provider || 'groq'}</td>
@@ -740,7 +740,7 @@ export function SettingsModule() {
                         </tr>
                       </thead>
                       <tbody>
-                        {reportData.metrics.recent_conversations?.length ? (
+                        {reportData?.metrics?.recent_conversations?.length ? (
                           reportData.metrics.recent_conversations.map((t: any, i: number) => (
                             <tr key={i} className={i % 2 !== 0 ? 'bg-slate-50' : 'bg-white'}>
                               <td className="py-2 px-3 border border-slate-200 text-slate-600 whitespace-nowrap">{t.created_at ? t.created_at.replace('Z', '').split('.')[0].replace('T', ' ') : 'N/A'}</td>

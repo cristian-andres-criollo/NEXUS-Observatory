@@ -15,7 +15,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     return (
       <div className="bg-white p-3 rounded-xl shadow-lg border border-slate-200 text-sm">
         <p className="font-semibold text-slate-700 mb-1">{label}</p>
-        {payload.map((p: any) => (
+        {(payload || []).map((p: any) => (
           <p key={p.dataKey} style={{ color: p.color }}>
             {p.name}: <strong>{p.value}</strong>
           </p>
@@ -78,14 +78,14 @@ export function Dashboard() {
        
        const query = projectId ? `?project_id=${projectId}` : '';
        
-       const metricsRes = await fetch(`http://127.0.0.1:8000/api/v1/metrics/${query}`, { headers });
+       const metricsRes = await fetch(`/api/v1/metrics/${query}`, { headers });
        const metricsData = await metricsRes.json();
        setMetrics(metricsData);
        
-       const latencyRes = await fetch(`http://127.0.0.1:8000/api/v1/metrics/latency${query}`, { headers });
+       const latencyRes = await fetch(`/api/v1/metrics/latency${query}`, { headers });
        setLatencyHistory(await latencyRes.json());
        
-       const costRes = await fetch(`http://127.0.0.1:8000/api/v1/metrics/cost${query}`, { headers });
+       const costRes = await fetch(`/api/v1/metrics/cost${query}`, { headers });
        setCostHistory(await costRes.json());
        
        if (projectId) {
@@ -277,7 +277,7 @@ export function Dashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map(p => (
+            {(projects || []).map(p => (
               <div 
                 key={p.id}
                 onClick={() => setSelectedAgentId(p.id)}
@@ -354,7 +354,7 @@ export function Dashboard() {
                     <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} width={120} />
                     <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc' }} />
                     <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={20}>
-                      {moduleData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                      {(moduleData || []).map((d, i) => <Cell key={i} fill={d.color} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -530,7 +530,7 @@ export function Dashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {projectUsers.map((u: any, i: number) => {
+                {(projectUsers || []).map((u: any, i: number) => {
                   const trm = adminData?.trm_usd_cop || 4000;
                   const spentCop = u.spent_cop || 0;
                   const limitCop = u.budget_cop || null;
@@ -634,7 +634,7 @@ export function Dashboard() {
                                   No hay trazas registradas para este agente aún.
                               </td>
                           </tr>
-                      ) : traces.map((trace, idx) => (
+                      ) : (traces || []).map((trace, idx) => (
                           <tr key={idx} className="border-b border-slate-50 hover:bg-slate-50/50 align-top">
                               <td className="px-4 py-4 text-slate-500 font-mono text-xs whitespace-nowrap">
                                   {(() => {
