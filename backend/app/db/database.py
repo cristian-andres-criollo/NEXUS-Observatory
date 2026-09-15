@@ -26,24 +26,21 @@ def create_tables():
     if "postgresql" in engine.url.drivername:
         with engine.connect() as conn:
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-            # Migraciones automáticas (BYOK)
-            try:
-                conn.execute(text("ALTER TABLE external_projects ADD COLUMN llm_provider VARCHAR(50) DEFAULT 'groq'"))
-            except Exception:
-                pass
-            try:
-                conn.execute(text("ALTER TABLE external_projects ADD COLUMN llm_api_key VARCHAR(255)"))
-            except Exception:
-                pass
-            try:
-                conn.execute(text("ALTER TABLE agent_user_limits ALTER COLUMN spent_cop TYPE DOUBLE PRECISION"))
-            except Exception as e:
-                print("Error altering agent_user_limits spent_cop:", e)
-            try:
-                conn.execute(text("ALTER TABLE agent_user_limits ALTER COLUMN budget_cop TYPE DOUBLE PRECISION"))
-            except Exception as e:
-                print("Error altering agent_user_limits budget_cop:", e)
             conn.commit()
+
+        for stmt in [
+            "ALTER TABLE external_projects ADD COLUMN llm_provider VARCHAR(50) DEFAULT 'groq'",
+            "ALTER TABLE external_projects ADD COLUMN llm_api_key VARCHAR(255)",
+            "ALTER TABLE agent_user_limits ALTER COLUMN spent_cop TYPE DOUBLE PRECISION",
+            "ALTER TABLE agent_user_limits ALTER COLUMN budget_cop TYPE DOUBLE PRECISION"
+        ]:
+            try:
+                with engine.connect() as conn:
+                    conn.execute(text(stmt))
+                    conn.commit()
+            except Exception:
+                pass
+
             
     Base.metadata.create_all(bind=engine)
     print("[OK] Tablas creadas en la base de datos")
