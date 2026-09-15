@@ -7,6 +7,9 @@ import requests
 sys.path.append(os.path.join(os.path.dirname(__file__), 'backend'))
 from app.db.database import get_db
 from app.models.external_project import ExternalProject, generate_api_key, hash_api_key
+from app.models.billing import BillingTransaction
+from app.models.agent_user import AgentUserLimit
+
 
 def main():
     # 1. Obtener la sesión de base de datos

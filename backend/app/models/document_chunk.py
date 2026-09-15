@@ -1,7 +1,16 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Index
 from sqlalchemy.sql import func
-from pgvector.sqlalchemy import Vector
+try:
+    from pgvector.sqlalchemy import Vector
+except ImportError:
+    from sqlalchemy.types import NullType
+    class Vector(NullType):
+        def __init__(self, *args, **kwargs):
+            super().__init__()
+
 from app.db.database import Base
+
+
 
 class DocumentChunk(Base):
     __tablename__ = "document_chunks"
