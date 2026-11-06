@@ -25,16 +25,15 @@ class Settings(BaseSettings):
     # URL base de la API de Groq (compatible con el protocolo OpenAI)
     GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
 
-    # Modelo por defecto. Opciones disponibles en Groq:
-    #   - "llama-3.1-8b-instant"      → Muy rápido, ideal para chat y evaluaciones
-    #   - "llama-3.3-70b-versatile"   → Mejor razonamiento, ideal para code review
-    #   - "llama-3.1-70b-versatile"   → Alternativa 70B
-    #   - "mixtral-8x7b-32768"        → Contexto largo (32k tokens)
-    #   - "gemma2-9b-it"              → Google Gemma 2
-    GROQ_MODEL: str = "llama-3.1-8b-instant"
+    # Modelo por defecto. Groq retiró los modelos Llama (nov-2026); vigentes:
+    #   - "openai/gpt-oss-20b"   → Rápido, ideal para chat y evaluaciones
+    #   - "openai/gpt-oss-120b"  → Mejor razonamiento, ideal para code review
+    #   - "qwen/qwen3.8-27b"     → Alternativa
+    # Lista actual: GET https://api.groq.com/openai/v1/models
+    GROQ_MODEL: str = "openai/gpt-oss-20b"
 
     # Modelo específico para tareas de análisis de código (más potente)
-    GROQ_CODE_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_CODE_MODEL: str = "openai/gpt-oss-120b"
 
     # Máximo de tokens de salida por solicitud
     GROQ_MAX_TOKENS: int = 8192

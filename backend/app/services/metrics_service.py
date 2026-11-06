@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.models.conversation import Conversation
 
-def get_global_metrics(db: Session, user_email: str = None, project_id: int = None) -> dict:
+def get_global_metrics(db: Session, user_email: str = None, project_id: int = None, owned_project_ids: list = None) -> dict:
     where_clause = "WHERE 1=1"
     params = {}
     
@@ -10,7 +10,13 @@ def get_global_metrics(db: Session, user_email: str = None, project_id: int = No
     is_sqlite = settings.DATABASE_URL.startswith("sqlite")
     
     if user_email:
-        where_clause += " AND c.user_email = :email"
+        # Lo del usuario: sus conversaciones + las de los agentes que le pertenecen
+        pid_expr = "json_extract(c.extra, '$.project_id')" if is_sqlite else "CAST(c.extra->>'project_id' AS INTEGER)"
+        ids = ",".join(str(int(i)) for i in (owned_project_ids or []))
+        if ids:
+            where_clause += f" AND (c.user_email = :email OR {pid_expr} IN ({ids}))"
+        else:
+            where_clause += " AND c.user_email = :email"
         params["email"] = user_email
     
     if project_id:
@@ -97,7 +103,7 @@ def get_global_metrics(db: Session, user_email: str = None, project_id: int = No
         "top_users": top_users,
     }
 
-def get_latency_history(db: Session, limit: int = 25, user_email: str = None, project_id: int = None) -> list:
+def get_latency_history(db: Session, limit: int = 25, user_email: str = None, project_id: int = None, owned_project_ids: list = None) -> list:
     where_clause = "WHERE 1=1"
     params = {"limit": limit}
     
@@ -105,7 +111,13 @@ def get_latency_history(db: Session, limit: int = 25, user_email: str = None, pr
     is_sqlite = settings.DATABASE_URL.startswith("sqlite")
 
     if user_email:
-        where_clause += " AND c.user_email = :email"
+        # Lo del usuario: sus conversaciones + las de los agentes que le pertenecen
+        pid_expr = "json_extract(c.extra, '$.project_id')" if is_sqlite else "CAST(c.extra->>'project_id' AS INTEGER)"
+        ids = ",".join(str(int(i)) for i in (owned_project_ids or []))
+        if ids:
+            where_clause += f" AND (c.user_email = :email OR {pid_expr} IN ({ids}))"
+        else:
+            where_clause += " AND c.user_email = :email"
         params["email"] = user_email
     
     if project_id:
@@ -133,7 +145,7 @@ def get_latency_history(db: Session, limit: int = 25, user_email: str = None, pr
         for r in reversed(rows)
     ]
 
-def get_cost_history(db: Session, limit: int = 25, user_email: str = None, project_id: int = None) -> list:
+def get_cost_history(db: Session, limit: int = 25, user_email: str = None, project_id: int = None, owned_project_ids: list = None) -> list:
     where_clause = "WHERE 1=1"
     params = {"limit": limit}
     
@@ -141,7 +153,13 @@ def get_cost_history(db: Session, limit: int = 25, user_email: str = None, proje
     is_sqlite = settings.DATABASE_URL.startswith("sqlite")
 
     if user_email:
-        where_clause += " AND c.user_email = :email"
+        # Lo del usuario: sus conversaciones + las de los agentes que le pertenecen
+        pid_expr = "json_extract(c.extra, '$.project_id')" if is_sqlite else "CAST(c.extra->>'project_id' AS INTEGER)"
+        ids = ",".join(str(int(i)) for i in (owned_project_ids or []))
+        if ids:
+            where_clause += f" AND (c.user_email = :email OR {pid_expr} IN ({ids}))"
+        else:
+            where_clause += " AND c.user_email = :email"
         params["email"] = user_email
         
     if project_id:

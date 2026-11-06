@@ -26,5 +26,5 @@ export function scoreLabel(score: number): string {
   return 'BAJO'
 }
 export function generateSessionId(): string {
-  return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  return `session_${Date.now()}_${crypto.randomUUID().substring(0, 8)}`
 }

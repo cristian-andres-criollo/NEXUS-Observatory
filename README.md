@@ -334,6 +334,18 @@ Asegúrate de ejecutar uvicorn desde **dentro** de la carpeta `backend/`, no des
 
 ---
 
+## Análisis de Calidad de Código (SonarQube)
+
+Para analizar el código del proyecto (backend y frontend) utilizando SonarQube de forma local, asegúrate de que el contenedor de Docker esté en ejecución y ejecuta el siguiente script desde la carpeta raíz del proyecto, utilizando tu token de acceso generado previamente:
+
+```powershell
+.\run-sonar.ps1 -Token "sqp_4ecb1c96260082af0c4b53bbcee011d686771f1d"
+```
+
+Los resultados del análisis estarán disponibles en el dashboard local de SonarQube.
+
+---
+
 ## Soporte
 
 - **Documentación API**: http://localhost:8000/docs (cuando el backend esté corriendo)

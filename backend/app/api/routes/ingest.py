@@ -41,9 +41,23 @@ def _get_trm(db: Session) -> float:
     return float(s.trm_usd_cop) if s else 4200.0
 
 
-def _get_cost_per_million(model: str, db: Session) -> float:
-    """Devuelve el costo en USD por millón de tokens según el modelo."""
+def _get_cost_per_million(model: str, db: Session, provider: Optional[str] = None) -> float:
+    """Devuelve el costo en USD por millón de tokens.
+
+    Si se conoce el proveedor real (proxy), la tarifa sale del proveedor: un
+    modelo como "openai/gpt-oss-20b" servido por Groq se cobra a tarifa Groq.
+    Sin proveedor (ingest), se infiere del nombre del modelo.
+    """
     s = db.query(SystemSettings).first()
+    provider_prices = {
+        "groq": (lambda: s.groq_cost_per_million, 0.69),
+        "openai": (lambda: s.openai_cost_per_million, 10.0),
+        "anthropic": (lambda: s.anthropic_cost_per_million, 15.0),
+        "google": (lambda: s.google_cost_per_million, 7.0),
+    }
+    if provider and provider.lower() in provider_prices:
+        getter, default = provider_prices[provider.lower()]
+        return float(getter()) if s else default
     model_lower = model.lower()
     if "gpt" in model_lower or "openai" in model_lower:
         return float(s.openai_cost_per_million) if s else 10.0

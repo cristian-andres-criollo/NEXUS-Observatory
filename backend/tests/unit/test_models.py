@@ -24,3 +24,18 @@ def test_agent_user_limit_model():
     assert limit.user_identifier == "test@example.com"
     assert limit.budget_cop == 1000.0
     assert limit.spent_cop == 150.5
+
+
+def test_external_project_has_budget():
+    from datetime import datetime
+    now = datetime.now()
+    current_month = f"{now.year}-{now.month:02d}"
+
+    project = ExternalProject(budget_cop=50000.0, spent_cop=10000.0, budget_month=current_month)
+    assert project.has_budget() is True
+
+    project.spent_cop = 60000.0
+    assert project.has_budget() is False
+
+    project.budget_month = "2000-01" # Old month
+    assert project.has_budget() is True

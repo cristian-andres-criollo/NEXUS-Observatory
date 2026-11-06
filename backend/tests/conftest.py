@@ -1,39 +1,34 @@
 import pytest
 import sys
 import os
+
+# Fuerza a que settings use SQLite file-based
+os.environ["DATABASE_URL"] = "sqlite:///./test.db"
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
-from sqlalchemy.orm import sessionmaker
 
 from app.main import app
-from app.db.database import Base, get_db
+from app.db.database import Base, get_db, engine, SessionLocal, create_tables
 from app.models import conversation, document, document_chunk, evaluation, user, system, external_project, billing, agent_user
+from app.core.rate_limit import limiter
 
-# SQLite in-memory para tests
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+# Disable rate limiting for tests
+limiter.enabled = False
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(autouse=True)
 def setup_database():
-    """Crea y destruye la base de datos de prueba para toda la sesión de pruebas."""
-    Base.metadata.create_all(bind=engine)
+    """Crea y destruye la base de datos de prueba para cada test."""
+    Base.metadata.drop_all(bind=engine)
+    create_tables()
     yield
     Base.metadata.drop_all(bind=engine)
 
 @pytest.fixture
 def db_session():
-    """Provee una sesión de DB limpia para cada test (limpiando tablas si se requiere, aunque sqlite in-memory es rápido)"""
-    # Alternativa: usar transacciones anidadas, pero in-memory es suficiente para empezar.
-    db = TestingSessionLocal()
+    """Provee una sesión de DB limpia para cada test."""
+    db = SessionLocal()
     try:
         yield db
     finally:

@@ -35,8 +35,7 @@ services:
     container_name: nexus_frontend
     ports:
       - "3000:80"
-    restart: unless-stopped
+
 
 volumes:
   postgres_data:
-
