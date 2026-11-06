@@ -1,12 +1,23 @@
+import logging
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 from typing import List
+
+logger = logging.getLogger(__name__)
+
+# Clave pública de desarrollo: solo se acepta con DEBUG=True.
+INSECURE_DEV_SECRET_KEY = "nexus-observatory-dev-secret-key-must-be-at-least-32-bytes"
+MIN_SECRET_KEY_LENGTH = 32
 
 
 class Settings(BaseSettings):
     # ── App ────────────────────────────────────────────────────────────────
     APP_NAME: str = "NEXUS Observatory"
     DEBUG: bool = False
-    SECRET_KEY: str = "nexus-observatory-dev-secret-key-must-be-at-least-32-bytes"
+    # Obligatorio en producción. Firma los JWT y deriva la clave Fernet que
+    # cifra las API keys de los agentes: si cambia, esas keys ya no se descifran.
+    # Generar con: python -c "import secrets; print(secrets.token_urlsafe(48))"
+    SECRET_KEY: str = ""
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176"
 
     # ── Email Notifications ──────────────────────────────────────────────────
@@ -25,16 +36,15 @@ class Settings(BaseSettings):
     # URL base de la API de Groq (compatible con el protocolo OpenAI)
     GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
 
-    # Modelo por defecto. Opciones disponibles en Groq:
-    #   - "llama-3.1-8b-instant"      → Muy rápido, ideal para chat y evaluaciones
-    #   - "llama-3.3-70b-versatile"   → Mejor razonamiento, ideal para code review
-    #   - "llama-3.1-70b-versatile"   → Alternativa 70B
-    #   - "mixtral-8x7b-32768"        → Contexto largo (32k tokens)
-    #   - "gemma2-9b-it"              → Google Gemma 2
-    GROQ_MODEL: str = "llama-3.1-8b-instant"
+    # Modelo por defecto. Groq retiró los modelos Llama (nov-2026); vigentes:
+    #   - "openai/gpt-oss-20b"   → Rápido, ideal para chat y evaluaciones
+    #   - "openai/gpt-oss-120b"  → Mejor razonamiento, ideal para code review
+    #   - "qwen/qwen3.8-27b"     → Alternativa
+    # Lista actual: GET https://api.groq.com/openai/v1/models
+    GROQ_MODEL: str = "openai/gpt-oss-20b"
 
     # Modelo específico para tareas de análisis de código (más potente)
-    GROQ_CODE_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_CODE_MODEL: str = "openai/gpt-oss-120b"
 
     # Máximo de tokens de salida por solicitud
     GROQ_MAX_TOKENS: int = 8192
@@ -64,7 +74,27 @@ class Settings(BaseSettings):
     HELICONE_BASE_URL: str = "https://oai.helicone.ai/v1"
 
     # ── Database ─────────────────────────────────────────────────────────────
-    DATABASE_URL: str = "postgresql://nexus_admin:nexus_secure_password@localhost:5432/nexus_db"
+    # Sin credenciales embebidas: define DATABASE_URL en .env para usar Postgres.
+    DATABASE_URL: str = "sqlite:///./nexus.db"
+
+    @model_validator(mode="after")
+    def _validate_secret_key(self):
+        key = self.SECRET_KEY
+        if not key and self.DEBUG:
+            logger.warning("SECRET_KEY vacío: usando clave de desarrollo (solo DEBUG=True).")
+            self.SECRET_KEY = INSECURE_DEV_SECRET_KEY
+            return self
+        if not key:
+            raise ValueError(
+                "SECRET_KEY no está configurado. Defínelo en .env o como variable de entorno "
+                "(mínimo 32 caracteres). Genera uno con: "
+                "python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+            )
+        if len(key) < MIN_SECRET_KEY_LENGTH:
+            raise ValueError(f"SECRET_KEY debe tener al menos {MIN_SECRET_KEY_LENGTH} caracteres.")
+        if key == INSECURE_DEV_SECRET_KEY and not self.DEBUG:
+            raise ValueError("SECRET_KEY usa la clave pública de desarrollo; no se permite con DEBUG=False.")
+        return self
 
     def get_cors_origins(self) -> List[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",")]
@@ -80,6 +110,8 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         extra = "allow"
+        # No volcar los valores del .env (API keys) en los logs si la validación falla
+        hide_input_in_errors = True
 
 
 settings = Settings()

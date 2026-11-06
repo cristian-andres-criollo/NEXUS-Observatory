@@ -9,6 +9,12 @@ except ImportError:
             super().__init__()
 
 from app.db.database import Base
+from sqlalchemy.ext.compiler import compiles
+
+@compiles(Vector, "sqlite")
+def compile_vector_sqlite(type_, compiler, **kw):
+    return "TEXT"
+
 
 
 

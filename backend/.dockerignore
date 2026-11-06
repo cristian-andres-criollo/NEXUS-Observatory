@@ -7,3 +7,10 @@ venv/
 reporte_backend.html
 .system_generated/
 scratch/
+.env.*
+!.env.example
+!.env.*.example
+*.db
+chroma_db/
+.coverage
+coverage.xml

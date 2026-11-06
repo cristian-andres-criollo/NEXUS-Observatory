@@ -123,7 +123,7 @@ async def proxy_chat_completions(
     except Exception:
         raise HTTPException(status_code=400, detail="Body JSON inválido")
 
-    model_name = body_json.get("model", "llama-3.1-8b-instant")
+    model_name = body_json.get("model", settings.GROQ_MODEL)
     provider = project.llm_provider or "groq"
     real_api_key = decrypt_api_key(project.llm_api_key) if project.llm_api_key else ""
 
@@ -149,8 +149,9 @@ async def proxy_chat_completions(
             AgentUserLimit.is_active == True
         ).first()
         
-        if user_limit:
-            user_remaining = user_limit.budget_cop - user_limit.spent_cop
+        # budget_cop = None significa "sin límite individual" (solo aplica el del agente)
+        if user_limit and user_limit.budget_cop is not None:
+            user_remaining = user_limit.budget_cop - (user_limit.spent_cop or 0.0)
             if user_remaining <= 0:
                 raise HTTPException(
                     status_code=403,
@@ -165,7 +166,7 @@ async def proxy_chat_completions(
     estimated_prompt_tokens = len(prompt_text_estimate) // 4
     
     trm = _get_trm(db)
-    cost_per_million = _get_cost_per_million(model_name, db)
+    cost_per_million = _get_cost_per_million(model_name, db, provider)
     
     if cost_per_million > 0 and trm > 0:
         cost_per_token_cop = (cost_per_million / 1_000_000.0) * trm
@@ -249,7 +250,7 @@ async def proxy_chat_completions(
                         proj_bg = db_bg.query(ExternalProject).filter(ExternalProject.id == project.id).first()
                         if proj_bg:
                             trm = _get_trm(db_bg)
-                            cost_per_million = _get_cost_per_million(model_name, db_bg)
+                            cost_per_million = _get_cost_per_million(model_name, db_bg, provider)
                             cost_usd = (total_tokens / 1_000_000) * cost_per_million
                             cost_cop = cost_usd * trm
                             
@@ -262,7 +263,8 @@ async def proxy_chat_completions(
                                 if not user_limit_bg:
                                     user_limit_bg = AgentUserLimit(
                                         project_id=proj_bg.id,
-                                        user_identifier=x_nexus_end_user_id
+                                        user_identifier=x_nexus_end_user_id,
+                                        spent_cop=0.0,
                                     )
                                     db_bg.add(user_limit_bg)
 
@@ -286,7 +288,7 @@ async def proxy_chat_completions(
                             db_bg.add(conv)
                             proj_bg.spent_cop += cost_cop
                             if user_limit_bg:
-                                user_limit_bg.spent_cop += cost_cop
+                                user_limit_bg.spent_cop = (user_limit_bg.spent_cop or 0.0) + cost_cop
                             db_bg.commit()
                             logger.info(f'[Proxy Stream] {proj_bg.name} | {model_name} | {total_tokens} tokens (est) |  COP | {latency_ms}ms')
                     except Exception as e:
@@ -321,7 +323,7 @@ async def proxy_chat_completions(
     total_tokens = usage.get('total_tokens', tokens_in + tokens_out)
 
     trm = _get_trm(db)
-    cost_per_million = _get_cost_per_million(model_name, db)
+    cost_per_million = _get_cost_per_million(model_name, db, provider)
     cost_usd = (total_tokens / 1_000_000) * cost_per_million
     cost_cop = cost_usd * trm
 
@@ -364,10 +366,11 @@ async def proxy_chat_completions(
         if not user_limit:
             user_limit = AgentUserLimit(
                 project_id=project.id,
-                user_identifier=x_nexus_end_user_id
+                user_identifier=x_nexus_end_user_id,
+                spent_cop=0.0,
             )
             db.add(user_limit)
-        user_limit.spent_cop += cost_cop
+        user_limit.spent_cop = (user_limit.spent_cop or 0.0) + cost_cop
 
     old_spent = project.spent_cop
     project.spent_cop += cost_cop

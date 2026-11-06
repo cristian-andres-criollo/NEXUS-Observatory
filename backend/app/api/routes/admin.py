@@ -153,7 +153,9 @@ def get_admin_dashboard(db: Session = Depends(get_db), current_admin: User = Dep
     cards_out = [{c: getattr(pm, c) for c in PaymentMethodOut.model_fields} for pm in cards]
 
     # Proyectos Externos (Agentes)
-    projects = db.query(ExternalProject).order_by(ExternalProject.created_at.desc()).all()
+    projects = db.query(ExternalProject).filter(
+        ExternalProject.owner_email == current_admin.email
+    ).order_by(ExternalProject.created_at.desc()).all()
     projects_out = [
         {
             "id": p.id,
@@ -332,6 +334,18 @@ class ProjectOut(BaseModel):
     created_at: str
 
 
+def _get_owned_project(project_id: int, db: Session, user: User) -> ExternalProject:
+    """Devuelve el agente solo si pertenece al usuario. Si es de otra cuenta, 404
+    (no revelamos que existe)."""
+    project = db.query(ExternalProject).filter(
+        ExternalProject.id == project_id,
+        ExternalProject.owner_email == user.email,
+    ).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    return project
+
+
 @router.post("/admin/projects")
 def create_project(
     req: ProjectCreate,
@@ -378,7 +392,9 @@ def list_projects(
     current_admin: User = Depends(get_current_admin_user),
 ):
     """Lista todos los proyectos externos registrados."""
-    projects = db.query(ExternalProject).order_by(ExternalProject.created_at.desc()).all()
+    projects = db.query(ExternalProject).filter(
+        ExternalProject.owner_email == current_admin.email
+    ).order_by(ExternalProject.created_at.desc()).all()
     return [
         ProjectOut(
             id=p.id,
@@ -407,9 +423,7 @@ def update_project(
     current_admin: User = Depends(get_current_admin_user),
 ):
     """Actualiza nombre, descripción, plan y presupuesto de un proyecto."""
-    project = db.query(ExternalProject).filter(ExternalProject.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    project = _get_owned_project(project_id, db, current_admin)
     project.name = req.name
     project.description = req.description
     project.plan = req.plan
@@ -429,9 +443,7 @@ def deactivate_project(
     current_admin: User = Depends(get_current_admin_user),
 ):
     """Desactiva el proyecto (kill switch permanente). No borra los datos históricos."""
-    project = db.query(ExternalProject).filter(ExternalProject.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    project = _get_owned_project(project_id, db, current_admin)
     project.is_active = False
     db.commit()
     return {"message": f"Proyecto '{project.name}' desactivado"}
@@ -443,9 +455,7 @@ def delete_project_permanently(
     current_admin: User = Depends(get_current_admin_user),
 ):
     """Borra el proyecto permanentemente (hard delete) de la base de datos."""
-    project = db.query(ExternalProject).filter(ExternalProject.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    project = _get_owned_project(project_id, db, current_admin)
     db.delete(project)
     db.commit()
     return {"message": f"Proyecto '{project.name}' eliminado permanentemente"}
@@ -461,9 +471,7 @@ def reset_project_key(
     Rota la API key del proyecto. La key anterior queda inválida de inmediato.
     La nueva key se muestra UNA SOLA VEZ.
     """
-    project = db.query(ExternalProject).filter(ExternalProject.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    project = _get_owned_project(project_id, db, current_admin)
     raw_key = generate_api_key()
     project.api_key_hash = hash_api_key(raw_key)
     project.api_key_prefix = raw_key[:12]
@@ -504,16 +512,14 @@ def list_project_users(
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
-    project = db.query(ExternalProject).filter(ExternalProject.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    project = _get_owned_project(project_id, db, current_admin)
         
     limits = db.query(AgentUserLimit).filter(AgentUserLimit.project_id == project_id).all()
     
     # También obtener todos los usuarios únicos que han usado el proxy
     active_users = db.query(Conversation.user_email, func.sum(Conversation.cost_usd)).filter(
         Conversation.user_email != project.owner_email,
-        Conversation.module.like("proxy_%")
+        Conversation.session_id.like(f"proxy_{project.id}_%")
     ).group_by(Conversation.user_email).all()
     
     # Combinar
@@ -559,9 +565,7 @@ def auto_distribute_project_user_budget(
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
-    project = db.query(ExternalProject).filter(ExternalProject.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    project = _get_owned_project(project_id, db, current_admin)
         
     # Get explicitly created limits
     active_limits = db.query(AgentUserLimit).filter(
@@ -574,7 +578,7 @@ def auto_distribute_project_user_budget(
     # Get implicit users from conversations
     implicit_users = db.query(Conversation.user_email).filter(
         Conversation.user_email != project.owner_email,
-        Conversation.module.like("proxy_%")
+        Conversation.session_id.like(f"proxy_{project.id}_%")
     ).group_by(Conversation.user_email).all()
     
     # Create limits for implicit users that don't have one
@@ -611,9 +615,7 @@ def add_project_user_limit(
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
-    project = db.query(ExternalProject).filter(ExternalProject.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    project = _get_owned_project(project_id, db, current_admin)
         
     existing = db.query(AgentUserLimit).filter(
         AgentUserLimit.project_id == project_id,
@@ -642,6 +644,7 @@ def update_project_user_limit(
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
+    _get_owned_project(project_id, db, current_admin)
     limit = db.query(AgentUserLimit).filter(
         AgentUserLimit.id == limit_id,
         AgentUserLimit.project_id == project_id
@@ -666,6 +669,7 @@ def delete_project_user_limit(
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
+    _get_owned_project(project_id, db, current_admin)
     limit = db.query(AgentUserLimit).filter(
         AgentUserLimit.id == limit_id,
         AgentUserLimit.project_id == project_id

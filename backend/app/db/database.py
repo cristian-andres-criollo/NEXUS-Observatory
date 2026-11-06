@@ -1,10 +1,30 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.pool import StaticPool
 from app.core.config import settings
 
+
+def normalize_db_url(url: str) -> str:
+    """SQLAlchemy 2.1+ usa psycopg (v3) por defecto para 'postgresql://'.
+    El proyecto instala psycopg2, así que fijamos el driver explícitamente."""
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    if url.startswith("postgresql://"):
+        url = "postgresql+psycopg2://" + url[len("postgresql://"):]
+    return url
+
+
+DATABASE_URL = normalize_db_url(settings.DATABASE_URL)
+
+engine_kwargs = {"pool_pre_ping": True}
+if DATABASE_URL.startswith("sqlite"):
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+    if ":memory:" in DATABASE_URL:
+        engine_kwargs["poolclass"] = StaticPool
+
 engine = create_engine(
-    settings.DATABASE_URL,
-    pool_pre_ping=True,
+    DATABASE_URL,
+    **engine_kwargs
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
