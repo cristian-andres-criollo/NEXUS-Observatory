@@ -170,10 +170,25 @@ Al abrir el navegador verás la pantalla de login. Las credenciales por defecto 
 
 ## Instalación — Opción 2: Docker (todo en un comando)
 
-Si tienes Docker Desktop instalado:
+Si tienes Docker Desktop instalado, primero crea los archivos de secretos (no se suben a git):
 
 ```bash
 cd nexus-observatory
+cp .env.example .env                                  # contraseña de Postgres
+cp backend/.env.docker.example backend/.env.docker    # SECRET_KEY y API keys
+```
+
+Rellena `POSTGRES_PASSWORD` en `.env` y `SECRET_KEY` (mínimo 32 caracteres) en `backend/.env.docker`. Puedes generar valores con:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+> El backend **no arranca** si `SECRET_KEY` falta, es corto o es la clave de ejemplo (salvo con `DEBUG=True`).
+
+Luego levanta todo:
+
+```bash
 docker-compose up -d --build
 ```
 
