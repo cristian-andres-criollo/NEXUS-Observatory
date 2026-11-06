@@ -12,3 +12,20 @@ __pycache__
 nexus.db
 *.log
 .DS_Store
+
+# Secretos y datos locales en cualquier subcarpeta (backend/, frontend/)
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+**/*.db
+**/venv
+**/node_modules
+**/chroma_db
+**/scratch
+**/coverage
+**/.coverage
+**/coverage.xml
+**/.pytest_cache
+**/reporte_backend.html
+docs

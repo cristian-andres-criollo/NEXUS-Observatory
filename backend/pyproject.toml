@@ -4,3 +4,6 @@
 # and disables false-positive errors from Spanish docstrings.
 project_includes = []
 project_excludes = ["**"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
