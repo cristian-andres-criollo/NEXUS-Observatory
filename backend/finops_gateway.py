@@ -16,7 +16,8 @@ app = FastAPI(title="Nexus FinOps Gateway")
 
 # Configuración de Entorno
 LITELLM_URL = os.getenv("LITELLM_URL", "http://localhost:4000")
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://nexus_admin:nexus_secure_password@localhost:5432/nexus_db")
+# Sin valor por defecto: las credenciales nunca van en el código.
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 # Pool de conexiones a PostgreSQL
 db_pool = None
@@ -24,6 +25,8 @@ db_pool = None
 @app.on_event("startup")
 async def startup():
     global db_pool
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL no está configurado para el FinOps Gateway.")
     db_pool = await asyncpg.create_pool(DATABASE_URL)
     print("🚀 Nexus FinOps Gateway conectado a PostgreSQL.")
 

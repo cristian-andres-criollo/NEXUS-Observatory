@@ -49,7 +49,7 @@ jobs:
         # Override the .env variable to point to the GitHub Actions postgres service
         DATABASE_URL: postgresql://nexus_admin:nexus_secure_password@localhost:5432/nexus_db
         FINOPS_DATABASE_URL: postgresql://nexus_admin:nexus_secure_password@localhost:5432/nexus_db
-        SECRET_KEY: test-secret-key
+        SECRET_KEY: ci-only-secret-key-not-for-production-0123456789
         GROQ_API_KEYS: gsk_test1,gsk_test2
         GROQ_MODEL: llama-3.1-8b-instant
       run: |

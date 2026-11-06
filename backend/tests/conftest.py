@@ -4,6 +4,8 @@ import os
 
 # Fuerza a que settings use SQLite file-based
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
+# Clave fija solo para pruebas (la app exige SECRET_KEY de >= 32 caracteres)
+os.environ.setdefault("SECRET_KEY", "test-only-secret-key-not-for-production-use-0123456789")
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
